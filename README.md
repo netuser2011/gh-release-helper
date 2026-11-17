@@ -3,7 +3,6 @@
 一个跑在终端里的 GitHub Release 下载工具：不知道作者是谁也能用——只输入仓库名就能搜出候选仓库，按编号选择，收藏常用项目，然后一键在浏览器和本地同时下载资产文件。
 
 全部走 GitHub 官方 REST API，不解析网页 HTML。
-仅用于授权测试，禁止非法用途
 
 配套文档：[更新日志](CHANGELOG.md) · [参与贡献](CONTRIBUTING.md) · [安全说明](SECURITY.md) · [发布步骤](PUBLISHING.md)
 
@@ -180,6 +179,7 @@ python -m unittest discover -s tests        # 90+ 用例，约 0.2 秒，全程�
 测试不会打 GitHub API（网络用假响应），也不会读写你的 `favorites.json`（落盘指向临时目录）。
 改代码前建议先读 `CONTRIBUTING.md` 的代码约定；要发布则按 `PUBLISHING.md` 一步步来。
 
+> 🏫 作者是一名中学生，白天上课，晚上写代码。 > 如果更新慢了，那肯定是在赶作业 😂。欢迎各路大佬提交 Issue 或 PR 一起完善这个项目！ > 觉得好用就点个 Star ⭐ 吧，你的 Star 就是我肝代码的动力！
 ## 常见问题
 
 **Q：报 `SSL 证书校验失败`？**
