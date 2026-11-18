@@ -230,8 +230,50 @@ def choose_destination() -> Path | None:
     return target
 
 
+def route_choices() -> list[tuple[str, str]]:
+    """线路菜单：第一项永远是自动测速，后面按白名单顺序把每条线路摆出来。"""
+    return [("自动测速，挑最快的一条", dl.AUTO_ROUTE)] + [(item["label"], item["id"]) for item in dl.MIRRORS]
+
+
+def choose_route() -> str | None:
+    """问一句走哪条线路，返回线路 id；返回 0 或取消时给 None。"""
+    choices = route_choices()
+    print()
+    print("  用哪条线路？")
+    for index, (label, _) in enumerate(choices, start=1):
+        tail = ui.c("（推荐）", ui.GREY) if index == 1 else ""
+        print(f"   {ui.c(f'{index}.', ui.CYAN)} {ui.c(label, ui.CYAN)}{tail}")
+    num = ui.choose("  请选择：", len(choices), allow_zero=True)
+    if not num:
+        return None
+    return choices[num - 1][1]
+
+
+def report_speedtest(results: list[dict], chosen: dict) -> None:
+    """把测速明细摆成表：快的排上面，不通的排下面并写清原因。"""
+    print(ui.c(f"  线路测速（{len(results)} 条并发，每条只拉前 {ui.human_size(dl.PROBE_BYTES)}）：", ui.CYAN))
+    ordered = sorted(results, key=lambda item: (not item.get("ok"), -item.get("speed", 0.0)))
+    rows = []
+    for item in ordered:
+        if item["id"] == chosen.get("id"):
+            note = "◀ 已选中"
+        else:
+            note = ui.truncate(item.get("error", ""), 22)
+        rows.append([
+            item["label"],
+            f"{item['latency'] * 1000:.0f} ms" if item.get("ok") else "-",
+            f"{item['speed'] / 1024:.0f} KB/s" if item.get("ok") else "不通",
+            note,
+        ])
+    ui.table(rows, ["线路", "首字节", "吞吐", "备注"])
+
+
 def do_download(repo: str, asset: dict) -> None:
-    """按用户选择的方式执行：浏览器 + 本地同时下载 / 仅本地 / 仅浏览器 / 只看链接。"""
+    """三种方式各走各的路：终端下载 / 浏览器下载 / 只给链接。
+
+    第一版把「唤起浏览器 + 本地下载」合成了一项，同一个文件下两遍，
+    被 issue 指出成事不足败事有余——现在一项只做一件事。
+    """
     url = asset.get("browser_download_url", "")
     name = asset.get("name", "release-asset")
     if not url:
@@ -240,35 +282,49 @@ def do_download(repo: str, asset: dict) -> None:
 
     print()
     print("  怎么下载？")
-    print("   " + ui.c("1. 唤起浏览器 + 本地直接下载（推荐）", ui.CYAN))
-    print("   " + ui.c("2. 只下载到本地", ui.CYAN))
-    print("   " + ui.c("3. 只用浏览器打开", ui.CYAN))
-    print("   " + ui.c("4. 只打印下载链接，我自己粘到浏览器或其它下载工具", ui.CYAN))
-    num = ui.choose("  请选择：", 4, allow_zero=True)
+    print("   " + ui.c("1. 终端下载到本地", ui.CYAN) + ui.c("（多线程分段 + 镜像测速）", ui.GREY))
+    print("   " + ui.c("2. 唤起浏览器下载", ui.CYAN))
+    print("   " + ui.c("3. 只打印下载链接", ui.CYAN) + ui.c("（自己粘到浏览器或其它下载工具）", ui.GREY))
+    num = ui.choose("  请选择：", 3, allow_zero=True)
     if not num:
         return
-    if num == 4:
+
+    if num == 3:
         print(ui.c(f"\n  {repo}  ·  {name}\n  {url}\n", ui.GREEN))
         print(ui.c("  复制上面这行链接即可，不用再回到本工具。", ui.DIM))
         return
 
-    if num in (1, 3):
+    if num == 2:
         if dl.open_in_browser(url):
             print(ui.c("  🌐 已调用系统默认浏览器打开下载。", ui.GREEN))
         else:
             print(ui.c(f"  ⚠ 没能自动唤起浏览器，请手动打开：\n     {url}", ui.YELLOW))
-    if num in (1, 2):
-        target_dir = choose_destination()
-        if not target_dir:
-            return
-        print(ui.c(f"  ⬇ 正在下载到 {target_dir} ...", ui.DIM))
-        try:
-            saved = dl.download(url, name, target_dir)
-        except dl.DownloadError as exc:
-            print(ui.c(f"  ✖ {exc}", ui.RED))
-            print(ui.c(f"     可以改用浏览器方式重试：{url}", ui.DIM))
-            return
-        print(ui.c(f"  ✔ 下载完成：{saved}（{ui.human_size(saved.stat().st_size)}）", ui.GREEN))
+        return
+
+    mirror = choose_route()
+    if not mirror:
+        return
+    target_dir = choose_destination()
+    if not target_dir:
+        return
+
+    try:
+        line, results = dl.choose_line(url, mirror)
+    except dl.DownloadError as exc:
+        print(ui.c(f"  ✖ {exc}", ui.RED))
+        return
+    if results:
+        report_speedtest(results, line)
+
+    label = f"{line['label']} · {ui.human_size(asset.get('size') or 0)}" if asset.get("size") else line["label"]
+    print(ui.c(f"  ⬇ 线路：{label}   正在下载到 {target_dir} ...", ui.DIM))
+    try:
+        saved, how = dl.fetch(line["url"], name, target_dir)
+    except dl.DownloadError as exc:
+        print(ui.c(f"  ✖ {exc}", ui.RED))
+        print(ui.c("     可以换一条线路或改用浏览器方式重试。", ui.DIM))
+        return
+    print(ui.c(f"  ✔ 下载完成：{saved}（{ui.human_size(saved.stat().st_size)} · {how}）", ui.GREEN))
 
 
 def browse_release(repo: str, token: str, store: dict | None = None, fav_key: str = "") -> None:
