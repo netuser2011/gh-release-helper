@@ -4,6 +4,8 @@
 
 全部走 GitHub 官方 REST API，不解析网页 HTML。
 
+[🌐 打开官网](https://netuser2011.github.io/gh-release-helper/)
+
 配套文档：[更新日志](CHANGELOG.md) · [参与贡献](CONTRIBUTING.md) · [安全说明](SECURITY.md) · [发布步骤](PUBLISHING.md)
 
 ```
