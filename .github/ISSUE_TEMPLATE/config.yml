@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 先看 README 的常见问题
+    url: https://github.com/netuser2011/gh-release-helper/blob/main/README.md#常见问题
+    about: SSL 证书、限流、latest 拿不到版本、双击闪退这些问题已经有现成答案。
+  - name: 安全问题请勿公开提
+    url: https://github.com/netuser2011/gh-release-helper/security
+    about: Token 泄露、路径穿越一类的问题请走 Security 页面的私密报告入口。

@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: 离线单元测试 · Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.10", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 装 Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 装依赖
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      # 语法兼容性检查：3.8 上能编译，就不会出现「本地跑得好、用户打不开」
+      - name: 编译所有模块
+        run: >
+          python -m py_compile main.py cli.py github_api.py downloader.py
+          favorites.py ui.py bootstrap.py
+
+      - name: 跑测试（全程离线，不打 GitHub API）
+        run: python -m unittest discover -s tests -v
+
+  windows:
+    name: Windows 控制台冒烟 · 报错不闪退
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 装依赖
+        run: python -m pip install -r requirements.txt
+
+      - name: 跑测试
+        run: python -m unittest discover -s tests
+
+      # 这一条专门盯历史 bug：Windows 控制台默认不是 UTF-8，程序会把输出流重设成
+      # UTF-8；万一改坏了，打印退出提示里的 emoji 就会 UnicodeEncodeError 闪退。
+      # 注意这里故意不设 PYTHONUTF8 / PYTHONIOENCODING，就是要暴露原始环境。
+      - name: 菜单退出路径必须干净返回 0
+        shell: pwsh
+        run: |
+          Remove-Item Env:PYTHONUTF8 -ErrorAction SilentlyContinue
+          Remove-Item Env:PYTHONIOENCODING -ErrorAction SilentlyContinue
+          "4" | python main.py
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "main.py 退出码 $LASTEXITCODE，控制台输出编码的问题又回来了"
+            exit 1
+          }
+
+      - name: 命令行模式自检（--help 能出来说明依赖与编码都没问题）
+        shell: pwsh
+        run: |
+          python cli.py --help
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # Token 页面地址必须还能打印出来：这是无 Token 用户的救命入口，也防止常量被改名
+          python cli.py --token-url
+          if ($LASTEXITCODE -ne 0) { exit 1 }

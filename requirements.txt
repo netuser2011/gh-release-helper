@@ -1,0 +1,4 @@
+# 只依赖 requests，其余全部用 Python 标准库
+# 界面、颜色、表格、进度条均为自研，不引入 rich / colorama / tqdm
+# 系统证书信任（syscert.py）也只用标准库 ssl，不需要 truststore / certifi 单独安装
+requests>=2.28.0
