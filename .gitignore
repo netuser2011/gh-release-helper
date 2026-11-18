@@ -22,6 +22,8 @@ dist/
 _internal/
 # 打包出的可执行文件（5 MB，Windows 专用）
 ghfind.exe
+# 发行版压缩包（13 MB，通过 GitHub Releases 分发）
+ghfind-v*.zip
 
 # ============================================================
 # Python 运行缓存
