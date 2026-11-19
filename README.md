@@ -45,10 +45,33 @@
 
 ## 环境要求
 
-- Python 3.8 及以上（推荐 3.10+）
-- 一个第三方依赖：`requests`；其余全部是标准库，不依赖 rich / colorama / tqdm，也不用任何 GUI 框架（系统证书信任只用标准库 `ssl`，不需额外安装 truststore）
+- **安装版 / 便携版**：无需安装 Python，直接运行即可
+- **从源码运行**：Python 3.8 及以上（推荐 3.10+），一个第三方依赖 `requests`；其余全部是标准库，不依赖 rich / colorama / tqdm，也不用任何 GUI 框架（系统证书信任只用标准库 `ssl`，不需额外安装 truststore）
 
 ## 安装
+
+### 方式一：安装版（推荐，Windows）
+
+无需安装 Python，下载后双击运行安装向导即可。
+
+| 文件 | 说明 |
+| --- | --- |
+| [GHDownloader-Windows-V1.1.1-Setup.exe](https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1-Setup.exe) | 安装版，自动创建桌面/开始菜单快捷方式，支持从「已安装的应用」卸载 |
+| [GHDownloader-Windows-V1.1.1.zip](https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1.zip) | 便携版，解压后直接运行 `GH Downloader.exe`，无需安装 |
+
+命令行下载：
+
+```bash
+# 安装版
+wget "https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1-Setup.exe"
+
+# 便携版
+wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1.zip"
+```
+
+> 便携版解压后，`GH Downloader.exe` 与 `_internal/` 文件夹需保持在同一目录，不要单独移动 exe。
+
+### 方式二：从源码运行（开发者 / 非 Windows）
 
 ```bash
 git clone https://github.com/netuser2011/gh-release-helper
@@ -56,9 +79,15 @@ cd gh-release-helper
 pip install -r requirements.txt
 ```
 
+需要 Python 3.8+（推荐 3.10+），唯一第三方依赖是 `requests`。
+
 ## 使用
 
-### 方式一：双击 `Run.bat`
+### 安装版 / 便携版
+
+双击 `GH Downloader.exe`（或快捷方式）即可进入交互菜单，与源码运行体验完全一致。无需安装 Python。
+
+### 从源码运行
 
 不想碰命令行的话，直接双击 `Run.bat` 即可进入菜单。它会先找到本机 Python（优先 `py -3`，其次 `python`），
 发现缺 `requests` 时按 `requirements.txt` 自动装一次，之后任何报错都留在窗口里等你按键。
