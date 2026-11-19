@@ -395,7 +395,7 @@
 <header class="hero" id="top">
   <div class="container hero-grid">
     <div>
-      <div class="badge-new reveal"><span>v1.0.0</span> 第一个公开发布版本 · MIT 开源</div>
+      <div class="badge-new reveal"><span>v1.1.1</span> Windows 安装版 · 免 Python · MIT 开源</div>
       <h1 class="reveal" data-d="1">
         <span class="line">只知道仓库名，</span>
         <span class="line">也能<span class="grad-text">一键下载</span></span>
@@ -403,13 +403,13 @@
       </h1>
       <p class="hero-lead reveal" data-d="2">一个跑在<strong>终端里</strong>的 GitHub 下载助手。不用先查作者，输入名字就能搜；多线程高速下载，三种方式随你挑，保存路径随时能改。</p>
       <div class="hero-btns reveal" data-d="3">
-        <a class="btn btn-cta btn-lg" href="https://github.com/netuser2011/gh-release-helper" target="_blank" rel="noopener"><svg class="icon"><use href="#i-github"/></svg>在 GitHub 上查看<svg class="icon"><use href="#i-arrow"/></svg></a>
-        <a class="btn btn-ghost btn-lg" href="#quickstart"><svg class="icon"><use href="#i-download"/></svg>快速开始</a>
+        <a class="btn btn-cta btn-lg" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1-Setup.exe" download><svg class="icon"><use href="#i-download"/></svg>下载 Windows 安装版<svg class="icon"><use href="#i-arrow"/></svg></a>
+        <a class="btn btn-ghost btn-lg" href="#quickstart"><svg class="icon"><use href="#i-github"/></svg>其他方式</a>
       </div>
       <ul class="hero-meta reveal" data-d="3">
-        <li><svg class="icon"><use href="#i-check-circle"/></svg>Python 3.8+ 即可运行</li>
-        <li><svg class="icon"><use href="#i-check-circle"/></svg>唯一依赖 requests</li>
-        <li><svg class="icon"><use href="#i-check-circle"/></svg>双击 Run.bat 也能用</li>
+        <li><svg class="icon"><use href="#i-check-circle"/></svg>安装版双击即用，无需 Python</li>
+        <li><svg class="icon"><use href="#i-check-circle"/></svg>多线程下载 · 断点续传</li>
+        <li><svg class="icon"><use href="#i-check-circle"/></svg>唯一依赖 requests（源码版）</li>
       </ul>
     </div>
     <div class="reveal" data-d="2" style="position:relative">
@@ -594,7 +594,7 @@ export GHR_DOWNLOAD_DIR=~/Downloads
       <div class="usecase reveal"><span class="u-icon"><svg class="icon"><use href="#i-package"/></svg></span><h3>快速拿安装包</h3><p>装软件时只需记住项目名，搜索、筛选、下载一气呵成，不用打开网页翻 Release。</p></div>
       <div class="usecase reveal" data-d="1"><span class="u-icon"><svg class="icon"><use href="#i-bookmark"/></svg></span><h3>管理常用项目</h3><p>把天天要更新的工具存进收藏夹，下次打开直接调出资产清单，版本更新一眼看到。</p></div>
       <div class="usecase reveal" data-d="2"><span class="u-icon"><svg class="icon"><use href="#i-link"/></svg></span><h3>交给专业下载工具</h3><p>网络环境受限时用命令行只取链接，粘到 Aria2 或其他下载器里继续，灵活不受限。</p></div>
-      <div class="usecase reveal" data-d="3"><span class="u-icon"><svg class="icon"><use href="#i-users"/></svg></span><h3>分享给不懂命令行的人</h3><p>双击 Run.bat 自动找 Python、自动装依赖、出错停窗等待，全程只按数字就行。</p></div>
+      <div class="usecase reveal" data-d="3"><span class="u-icon"><svg class="icon"><use href="#i-users"/></svg></span><h3>分享给不懂命令行的人</h3><p>下载安装版双击装好，桌面快捷方式点开即用。全程无需 Python，无需命令行。</p></div>
     </div>
   </div>
 </section>
@@ -604,32 +604,31 @@ export GHR_DOWNLOAD_DIR=~/Downloads
   <div class="container">
     <div class="center">
       <span class="eyebrow reveal">快速开始</span>
-      <h2 class="section-title reveal" data-d="1">两分钟跑起来</h2>
-      <p class="section-sub reveal" data-d="2">Python 3.8 及以上，唯一第三方依赖是 requests。</p>
+      <h2 class="section-title reveal" data-d="1">两分钟用起来</h2>
+      <p class="section-sub reveal" data-d="2">安装版无需 Python，下载双击就完。便携版解压即跑。源码版给开发者。</p>
     </div>
     <div class="qs-grid">
       <div class="qs-card recommend reveal">
-        <span class="qs-tag"><svg class="icon icon-sm"><use href="#i-star"/></svg>新手推荐</span>
-        <h3>双击 Run.bat</h3>
-        <p>不用碰命令行，双击文件即可进入菜单。</p>
+        <span class="qs-tag"><svg class="icon icon-sm"><use href="#i-star"/></svg>推荐 · 安装版</span>
+        <h3>下载 Setup，双击安装</h3>
+        <p>无需 Python，无需命令行，装完桌面就有快捷方式。</p>
         <div class="qs-steps">
-          <div class="qs-step"><span class="n">1</span>自动寻找本机 Python（py -3 优先）</div>
-          <div class="qs-step"><span class="n">2</span>发现缺 requests 时按 requirements.txt 自动安装</div>
-          <div class="qs-step"><span class="n">3</span>进入菜单，输入数字开始搜索</div>
+          <div class="qs-step"><span class="n">1</span>下载 GHDownloader-Windows-V1.1.1-Setup.exe</div>
+          <div class="qs-step"><span class="n">2</span>双击运行安装向导，一路下一步</div>
+          <div class="qs-step"><span class="n">3</span>桌面出现快捷方式，点开即用</div>
         </div>
-        <div class="qs-cmd"><span>双击 gh-release-helper\Run.bat</span></div>
+        <div class="qs-cmd"><span>12.8 MB · Windows 10/11 · x64</span><a class="copy-btn" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1-Setup.exe" download aria-label="下载安装版"><svg class="icon"><use href="#i-download"/></svg></a></div>
       </div>
       <div class="qs-card reveal" data-d="1">
-        <span class="qs-tag"><svg class="icon icon-sm"><use href="#i-terminal"/></svg>命令行</span>
-        <h3>从终端启动</h3>
-        <p>想要更多控制？直接运行 Python 脚本。</p>
+        <span class="qs-tag"><svg class="icon icon-sm"><use href="#i-folder"/></svg>便携版 / 源码版</span>
+        <h3>其他获取方式</h3>
+        <p>不想装？解压 ZIP 直接跑。要改代码？从源码构建。</p>
         <div class="qs-steps">
-          <div class="qs-step"><span class="n">1</span>克隆仓库并进入目录</div>
-          <div class="qs-step"><span class="n">2</span>安装唯一的第三方依赖 requests</div>
-          <div class="qs-step"><span class="n">3</span>运行主程序，或一步直达指定仓库</div>
+          <div class="qs-step"><span class="n">1</span>便携版：下载 ZIP，解压后双击 <b>GH Downloader.exe</b></div>
+          <div class="qs-step"><span class="n">2</span>命令行：<code>wget "https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1.zip"</code></div>
+          <div class="qs-step"><span class="n">3</span>源码：git clone → pip install -r requirements.txt → python main.py</div>
         </div>
-        <div class="qs-cmd"><span>pip install -r requirements.txt</span><button class="copy-btn" data-copy="pip install -r requirements.txt" aria-label="复制命令"><svg class="icon"><use href="#i-copy"/></svg></button></div>
-        <div class="qs-cmd"><span>python main.py</span><button class="copy-btn" data-copy="python main.py" aria-label="复制命令"><svg class="icon"><use href="#i-copy"/></svg></button></div>
+        <div class="qs-cmd"><span>便携版 13.2 MB · 无需 Python</span><a class="copy-btn" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1.zip" download aria-label="下载便携版"><svg class="icon"><use href="#i-download"/></svg></a></div>
       </div>
     </div>
   </div>
@@ -641,8 +640,8 @@ export GHR_DOWNLOAD_DIR=~/Downloads
     <h2 class="reveal">把时间花在创造上，<br>而不是找下载链接上。</h2>
     <p class="reveal" data-d="1">开源、免费、MIT 许可。欢迎 Star，也欢迎提交 Issue 和 PR 一起完善。</p>
     <div class="cta-btns reveal" data-d="2">
-      <a class="btn btn-white btn-lg" href="https://github.com/netuser2011/gh-release-helper" target="_blank" rel="noopener"><svg class="icon"><use href="#i-github"/></svg>访问 GitHub 仓库</a>
-      <a class="btn btn-outline-light btn-lg" href="https://github.com/netuser2011/gh-release-helper/releases/tag/v1.0.0" target="_blank" rel="noopener"><svg class="icon"><use href="#i-download"/></svg>下载 v1.0.0</a>
+      <a class="btn btn-white btn-lg" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1-Setup.exe" download><svg class="icon"><use href="#i-download"/></svg>下载 Windows 安装版</a>
+      <a class="btn btn-outline-light btn-lg" href="https://github.com/netuser2011/gh-release-helper" target="_blank" rel="noopener"><svg class="icon"><use href="#i-github"/></svg>访问 GitHub 仓库</a>
     </div>
   </div>
 </section>
@@ -658,7 +657,7 @@ export GHR_DOWNLOAD_DIR=~/Downloads
       <div class="foot-col">
         <h4>项目</h4>
         <a href="https://github.com/netuser2011/gh-release-helper" target="_blank" rel="noopener">GitHub 仓库</a>
-        <a href="https://github.com/netuser2011/gh-release-helper/releases/tag/v1.0.0" target="_blank" rel="noopener">下载与 Releases</a>
+        <a href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1-Setup.exe" download>下载安装版</a>
         <a href="https://github.com/netuser2011/gh-release-helper/blob/main/CHANGELOG.md" target="_blank" rel="noopener">更新日志</a>
       </div>
       <div class="foot-col">
