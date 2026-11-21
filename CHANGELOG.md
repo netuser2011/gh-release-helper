@@ -5,6 +5,41 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-21
+
+### 新增
+
+- **菜单 5「检查更新」**：批量检查收藏仓库的最新 Release，展示上次/最新 tag 与更新摘要，结束后回写 tag 与资产缓存；内置无 Token 上限、>30 确认、低配额提前停止与 403/429 限流中断。
+- **更新说明全屏查看**：搜索结果输入 `d` + 编号（如 `d3`）即可在新窗口查看该仓库 Release 的 Markdown 正文，↑/↓ 滚动、Q 返回，不跳转浏览器。
+
+### 改进
+
+- **rich 渲染界面**：表格、横幅与进度条改用 rich，自动列宽与中文/emoji 对齐更稳；更新说明由 rich Markdown 排版。
+- **truststore 信任系统证书**：用 `truststore.inject_into_ssl()` 替代手写证书导出合并，开代理不再报 SSL 错误；已设 `REQUESTS_CA_BUNDLE` 时不覆盖。
+- **downloader 重写为 asyncio + httpx**：删掉 threading/ThreadPoolExecutor/Lock，测速与分段下载改用 `asyncio.gather`；进度条交给 rich，代码量比原先少 30%。新增 `httpx` 依赖（`requests` 仍用于 GitHub API）。
+
+## [1.1.1] - 2026-11-21
+
+### 新增
+
+- **Windows 安装版（Inno Setup）**：提供 `GHDownloader-Windows-V1.1.1-Setup.exe`，双击安装，
+  自动创建桌面/开始菜单快捷方式，在「已安装的应用」中注册卸载项。无需 Python。
+- **便携版重新打包**：主程序由 `ghfind.exe` 更名为 `GH Downloader.exe`，
+  统一使用自定义应用图标（深色终端风格 + 绿色下载箭头）。
+- **命令行下载入口**：README 与官网均提供 `wget` 一行命令直接下载安装版。
+- **Winget 分发**：已提交 `netuser2011.GHDownloader` 至 `microsoft/winget-pkgs`，
+  合并后可通过 `winget install netuser2011.GHDownloader` 安装。
+
+### 改进
+
+- 官网（GitHub Pages）主按钮改为直接下载安装版，不再跳转 Release 页面。
+- README「安装」章节重写：安装版 / 便携版放前面，源码运行降为开发者选项。
+- 版本标识统一为 v1.1.1，消除之前 V1.0.0 / V1.1.0 混用问题。
+
+---
+
+## [1.1.0] - 2025-06-15
+
 ### 新增
 
 - **断点续传**：下载中断（断网 / Ctrl+C）不再删除半截文件，而是用 `.part` +
