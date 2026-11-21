@@ -24,6 +24,8 @@ _internal/
 ghfind.exe
 # 发行版压缩包（13 MB，通过 GitHub Releases 分发）
 ghfind-v*.zip
+# Inno Setup / 打包输出（约 65 MB，通过 GitHub Releases 分发）
+Output/
 
 # ============================================================
 # Python 运行缓存
@@ -59,3 +61,4 @@ desktop.ini
 # 临时文件
 # ============================================================
 *.tmp
+.openbitfun/

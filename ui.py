@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 """终端 UI 工具：颜色、分隔线、表格、进度条与输入辅助。
 
-只用标准库，不引入 rich / colorama。Windows 10+ 通过启用虚拟终端序列支持 ANSI 颜色，
-在管道、重定向或设置 NO_COLOR 时自动降级为纯文本，避免满屏乱码。
+纯逻辑函数（宽度/折行/体积/进度文本/ANSI 颜色）保持原有行为，供全项目与测试复用；
+表格与横幅交给 rich 渲染，获得自动列宽、中文/emoji 对齐与更整齐的边框。
+NO_COLOR、管道输出时 rich 与自研代码一样降级为纯文本。
 """
 
 from __future__ import annotations
@@ -14,6 +15,15 @@ import sys
 import time
 import traceback
 from pathlib import Path
+
+from io import StringIO
+
+from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import ProgressBar
+from rich.table import Table
+from rich.text import Text
 
 # ---------- ANSI 序列 ----------
 RESET = "\033[0m"
@@ -155,33 +165,53 @@ def clear() -> None:
         os.system("cls" if os.name == "nt" else "clear")
 
 
+def _console(*, width: int | None = None, file=None) -> Console:
+    """统一创建 rich 控制台：尊重 NO_COLOR / FORCE_COLOR，动态跟随 stdout。"""
+    return Console(
+        file=file,
+        width=width,
+        no_color=not color_enabled(),
+        force_terminal=True if color_enabled() else None,
+        markup=False,
+        highlight=False,
+        soft_wrap=True,
+    )
+
+
+def _plain(cell: str) -> str:
+    """rich 不认识本项目的 ANSI 常量，渲染前把颜色码去掉。"""
+    return Text.from_ansi(str(cell)).plain
+
+
 def banner(title: str, subtitle: str = "") -> None:
-    """渲染顶部标题框。"""
-    inner = max(display_width(title), display_width(subtitle)) + 2
-    bar = c("─", CYAN)
-    print(c("╭", CYAN) + bar * inner + c("╮", CYAN))
-    print(c("│", CYAN) + " " + c(pad(title, inner - 2), BOLD) + " " + c("│", CYAN))
+    """渲染顶部标题框（rich Panel，自动适配标题宽度）。"""
+    body = _plain(title)
     if subtitle:
-        print(c("│", CYAN) + " " + c(pad(subtitle, inner - 2), GREY) + " " + c("│", CYAN))
-    print(c("╰", CYAN) + bar * inner + c("╯", CYAN))
+        body += "\n" + _plain(subtitle)
+    panel = Panel(
+        body,
+        title=None,
+        border_style="cyan",
+        expand=False,
+        padding=(0, 1),
+    )
+    _console().print(panel)
 
 
 def table(rows: list[list[str]], headers: list[str]) -> None:
-    """输出等宽对齐的表格（列宽自适应，兼容中英文混排）。"""
-    widths = [display_width(h) for h in headers]
+    """输出等宽对齐的表格：rich 负责列宽、中文宽度与边框。"""
+    grid = Table(box=box.ASCII, show_header=True, header_style="bold", pad_edge=True)
+    for header in headers:
+        grid.add_column(_plain(header))
     for row in rows:
-        for i, cell in enumerate(row):
-            widths[i] = max(widths[i], display_width(cell))
-
-    sep = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
-    head = "|" + "|".join(c(f" {pad(h, widths[i])} ", BOLD) for i, h in enumerate(headers)) + "|"
-
-    print(c(sep, GREY))
-    print(head)
-    print(c(sep, GREY))
+        grid.add_row(*[_plain(cell) for cell in row])
+    # 逻辑宽度取「终端宽度」与「所有单元格实际宽度」的较大者，
+    # 避免下载链接/更新摘要等长内容被 rich 挤压成省略号。
+    natural = max((display_width(str(c)) for c in headers), default=0)
     for row in rows:
-        print(c("|", GREY) + c("|", GREY).join(f" {pad(cell, widths[i])} " for i, cell in enumerate(row)) + c("|", GREY))
-    print(c(sep, GREY))
+        natural = max(natural, sum(display_width(str(c)) for c in row))
+    width = max(term_width(), 120, natural + len(headers) * 4 + 2)
+    _console(width=width).print(grid)
 
 
 def human_size(num: float) -> str:
@@ -211,6 +241,26 @@ def progress_line(done: int, total: int, rate: float, width: int = 26) -> str:
     eta = f" ETA {human_duration((total - done) / rate)}" if total > 0 and rate > 0 else ""
     speed = f" {human_size(rate)}/s" if rate > 0 else ""
     return f"[{bar}] {ratio * 100:5.1f}%  {info}{speed}{eta}"
+
+
+def progress_render(done: int, total: int, rate: float, width: int = 26) -> str:
+    """用 rich 渲染进度条主体，后接与 progress_line 相同的文字信息。
+
+    保留 downloader 现有的 \\r 重绘机制，避免改动下载状态机；
+    无颜色时 rich 输出破折号进度条，有颜色时由 rich 上色。
+    """
+    buf = StringIO()
+    console = Console(
+        file=buf,
+        width=max(width + 8, 40),
+        no_color=not color_enabled(),
+        force_terminal=True if color_enabled() else None,
+    )
+    bar = ProgressBar(total=total if total > 0 else 100,
+                      completed=min(done, total) if total > 0 else 0, width=width)
+    console.print(bar, end="")
+    tail = progress_line(done, total, rate, width=1).split("]", 1)[-1]
+    return buf.getvalue() + tail
 
 
 def ask(prompt: str = ">>> ") -> str:

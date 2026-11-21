@@ -1,4 +1,8 @@
-# 只依赖 requests，其余全部用 Python 标准库
-# 界面、颜色、表格、进度条均为自研，不引入 rich / colorama / tqdm
-# 系统证书信任（syscert.py）也只用标准库 ssl，不需要 truststore / certifi 单独安装
-requests>=2.28.0
+# requests：GitHub REST API（downloader.py 已改用 httpx）
+requests>=2.28,<3
+# httpx：下载与测速（asyncio 并发）
+httpx>=0.27,<1
+# rich：终端表格、横幅、进度条与更新说明的 Markdown 渲染
+rich>=13,<15
+# truststore：直接信任操作系统证书存储（代理工具场景）
+truststore>=0.9,<1

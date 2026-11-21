@@ -1,20 +1,19 @@
 # -*- coding: utf-8 -*-
-"""线路测速、多线程分段下载，以及下载方式只剩三项的回归测试。
+"""线路测速、asyncio 并发分段下载，以及下载方式只剩三项的回归测试。
 
 假服务器只认识 Range 请求，用来回答「文件多大、能不能分段、这一段给你」。
-全程不联网：镜像地址、测速排序、分段落盘的字节是否逐位对得上，都在这里判。
+全程不联网：把 dl._client / dl._aclient 换成假 httpx 客户端即可。
 """
 
 import os
 import re
 import tempfile
-import types
 import unittest
-from contextlib import redirect_stdout
+from contextlib import asynccontextmanager, contextmanager, redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-import requests
+import httpx
 
 import downloader as dl
 import main as app
@@ -37,14 +36,24 @@ class FakeResponse:
         self._body = body
         self.headers = headers or {}
 
-    def iter_content(self, chunk_size=1):
+    def iter_bytes(self, chunk_size=1):
         for offset in range(0, len(self._body), chunk_size):
             yield self._body[offset:offset + chunk_size]
+
+    async def aiter_bytes(self, chunk_size=1):
+        for chunk in self.iter_bytes(chunk_size):
+            yield chunk
 
     def __enter__(self):
         return self
 
     def __exit__(self, *args):
+        return False
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
         return False
 
 
@@ -71,7 +80,7 @@ class FakeServer:
                 return FakeResponse(code, b"denied", {"Content-Length": "6"})
         for needle in self.fail_for:
             if needle in url:
-                raise requests.exceptions.ConnectionError(f"模拟：{needle} 连不上")
+                raise httpx.ConnectError(f"模拟：{needle} 连不上")
         match = re.match(r"bytes=(\d+)-(\d+)$", requested)
         if match and self.support_range:
             start, end = int(match.group(1)), int(match.group(2))
@@ -83,9 +92,41 @@ class FakeServer:
         return FakeResponse(200, self.payload, {"Content-Length": str(len(self.payload))})
 
     def install(self, test):
-        saved = dl.requests
-        dl.requests = types.SimpleNamespace(get=self.get, exceptions=requests.exceptions)
-        test.addCleanup(setattr, dl, "requests", saved)
+        server = self
+
+        class FakeClient:
+            def __init__(self, *a, **kw):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            @contextmanager
+            def stream(self, method, url, headers=None, **kw):
+                yield server.get(url, headers=headers)
+
+        class FakeAsyncClient:
+            def __init__(self, *a, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+            @asynccontextmanager
+            async def stream(self, method, url, headers=None, **kw):
+                yield server.get(url, headers=headers)
+
+        saved_sync, saved_async = dl._client, dl._aclient
+        dl._client = FakeClient
+        dl._aclient = FakeAsyncClient
+        test.addCleanup(setattr, dl, "_client", saved_sync)
+        test.addCleanup(setattr, dl, "_aclient", saved_async)
         return self
 
     def urls(self):
@@ -211,16 +252,20 @@ class ChooseLineTest(unittest.TestCase):
         self.assertEqual(server.calls, [])
 
     def canned_probes(self, speeds):
-        """把 probe_line 换成按 URL 查表的假实现，避免测试真的等网络。"""
-        saved = dl.probe_line
-        self.addCleanup(setattr, dl, "probe_line", saved)
+        """把 probe_lines 换成按 URL 查表的假实现，避免测试真的等网络。"""
+        saved = dl.probe_lines
+        self.addCleanup(setattr, dl, "probe_lines", saved)
 
         def fake(url, **kwargs):
-            speed = speeds.get(url, 0.0)
-            return {"ok": speed > 0, "speed": speed, "latency": 0.1, "bytes": 1024,
-                    "error": "" if speed > 0 else "模拟：不通"}
+            results = []
+            for item in dl.lines_for(url):
+                speed = speeds.get(item["url"], 0.0)
+                results.append({**item, "ok": speed > 0, "speed": speed,
+                                "latency": 0.1, "bytes": 1024,
+                                "error": "" if speed > 0 else "模拟：不通"})
+            return results
 
-        dl.probe_line = fake
+        dl.probe_lines = fake
 
     def test_auto_picks_the_fastest_of_all_lines(self):
         speeds = {ASSET_URL: 1.0 * 1024, MIRROR_URL: 9.0 * 1024}
@@ -311,8 +356,8 @@ class ParallelDownloadTest(unittest.TestCase):
                 resp.headers["Content-Length"] = str(len(resp._body))
             return resp
 
-        dl.requests = types.SimpleNamespace(get=lying_get, exceptions=requests.exceptions)
-        self.addCleanup(setattr, dl, "requests", server)
+        server.get = lying_get
+        server.install(self)
         with self.assertRaises(dl.DownloadError) as ctx:
             dl.download_parallel(ASSET_URL, self.dir, "tool.zip", len(data), 2)
         self.assertIn("不完整", str(ctx.exception))
@@ -350,27 +395,27 @@ class FetchTest(unittest.TestCase):
         data = payload_bytes(dl.PARALLEL_MIN_SIZE + MEGABYTE)
         FakeServer(data).install(self)
         saved, how = dl.fetch(ASSET_URL, "tool.zip", self.dir)
-        self.assertIn("线程分段", how)
+        self.assertIn("并发分段", how)
         self.assertEqual(saved.read_bytes(), data)
 
     def test_small_file_stays_single_stream(self):
         FakeServer(payload_bytes(256 * 1024)).install(self)
         saved, how = dl.fetch(ASSET_URL, "tool.zip", self.dir)
-        self.assertEqual(how, "单线程流式")
+        self.assertEqual(how, "单流下载")
         self.assertEqual(saved.read_bytes(), payload_bytes(256 * 1024))
 
     def test_no_range_support_falls_back(self):
         data = payload_bytes(3 * MEGABYTE)
         FakeServer(data, support_range=False).install(self)
         saved, how = dl.fetch(ASSET_URL, "tool.zip", self.dir)
-        self.assertEqual(how, "单线程流式")
+        self.assertEqual(how, "单流下载")
         self.assertEqual(saved.read_bytes(), data)
 
     def test_single_worker_never_opens_a_thread_pool(self):
         data = payload_bytes(3 * MEGABYTE)
         server = FakeServer(data).install(self)
         _, how = dl.fetch(ASSET_URL, "tool.zip", self.dir, workers=1)
-        self.assertEqual(how, "单线程流式")
+        self.assertEqual(how, "单流下载")
         self.assertFalse([c for c in server.calls if c["range"] not in ("bytes=0-0", "")],
                          "workers=1 时不该再分段请求")
 
@@ -522,15 +567,15 @@ class ProbeConcurrencyTest(unittest.TestCase):
     """七条线路必须一起测：串行等待会让最坏情况变成 7 × 超时。"""
 
     def canned(self, behaviour):
-        saved = dl.probe_line
-        self.addCleanup(setattr, dl, "probe_line", saved)
+        saved = dl._probe
+        self.addCleanup(setattr, dl, "_probe", saved)
         seen = []
 
-        def fake(url, **kwargs):
-            seen.append(url)
-            return behaviour(url)
+        async def fake(client, line, *a, **kw):
+            seen.append(line["url"])
+            return behaviour(line["url"])
 
-        dl.probe_line = fake
+        dl._probe = fake
         return seen
 
     def test_every_line_is_probed_once(self):
@@ -541,14 +586,16 @@ class ProbeConcurrencyTest(unittest.TestCase):
         self.assertEqual(len(results), len(dl.MIRRORS))
 
     def test_total_wait_is_one_round_not_a_queue(self):
-        import threading
+        import asyncio
         import time
 
-        def slow(url, **kwargs):
-            threading.Event().wait(0.25)
+        async def slow(client, line, *a, **kw):
+            await asyncio.sleep(0.25)
             return {"ok": True, "speed": 1.0, "latency": 0.25, "bytes": 1024, "error": ""}
 
-        self.canned(slow)
+        saved = dl._probe
+        self.addCleanup(setattr, dl, "_probe", saved)
+        dl._probe = slow
         started = time.time()
         dl.probe_lines(ASSET_URL)
         elapsed = time.time() - started
@@ -557,13 +604,15 @@ class ProbeConcurrencyTest(unittest.TestCase):
                         f"并发测速不该接近串行的 {serial:.2f} 秒，实测 {elapsed:.2f} 秒")
 
     def test_a_line_that_never_answers_is_cut_off(self):
-        import threading
+        import asyncio
 
-        def hang(url, **kwargs):
-            threading.Event().wait(3)
+        async def hang(client, line, *a, **kw):
+            await asyncio.sleep(3)
             return {"ok": True, "speed": 1.0, "latency": 0.0, "bytes": 1024, "error": ""}
 
-        self.canned(hang)
+        saved = dl._probe
+        self.addCleanup(setattr, dl, "_probe", saved)
+        dl._probe = hang
         results = dl.probe_lines(ASSET_URL, wall_timeout=0.2)
         self.assertEqual(len(results), len(dl.MIRRORS), "超时的线路也要在明细里占一行")
         for item in results:

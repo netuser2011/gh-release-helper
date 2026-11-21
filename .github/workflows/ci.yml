@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.10", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
 
@@ -30,7 +30,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      # 语法兼容性检查：3.8 上能编译，就不会出现「本地跑得好、用户打不开」
+      # 语法兼容性检查：3.10 上能编译，就不会出现「本地跑得好、用户打不开」
       - name: 编译所有模块
         run: >
           python -m py_compile main.py cli.py github_api.py downloader.py

@@ -7,18 +7,22 @@
 ```bash
 git clone <你的仓库地址>
 cd gh-release-helper
-python -m pip install -r requirements.txt   # 只有 requests 一个依赖
+python -m pip install -r requirements.txt
 python main.py                              # 进入交互菜单
 ```
 
-- Python 3.8+（`.github/workflows/ci.yml` 会在 3.8 / 3.10 / 3.12 / 3.13 上各跑一遍，
-  本地请用 3.8 验一次语法兼容性）。
-- 无需任何 GUI 框架，无需 rich / colorama / tqdm。
+- Python 3.10+（`.github/workflows/ci.yml` 会在 3.10 / 3.11 / 3.12 / 3.13 上各跑一遍，
+  本地请用 3.10 验一次语法兼容性）。
+- 共四个第三方依赖：`requests`（GitHub REST API 读接口）、`httpx`（下载 / 测速，
+  asyncio 并发）、`rich`（表格 / 横幅 / 进度条 / Markdown 翻页）、`truststore`
+  （把系统已受信任的 CA 注入 ssl，等效浏览器证书基线）。
+- 无需任何 GUI 框架。界面统一走 `rich`，不要另外引入 `colorama` / `tqdm` /
+  `urwid` 之类的渲染或进度条依赖。
 
 ## 跑测试
 
 ```bash
-python -m unittest discover -s tests          # 全量，约 0.2 秒
+python -m unittest discover -s tests          # 全量，约 2.3 秒，214 个用例
 python -m unittest tests.test_ui -v           # 只跑一个文件
 python -m unittest tests.test_core.DownloadTest.test_bytes_land_in_one_file
 ```
@@ -30,13 +34,13 @@ python -m unittest tests.test_core.DownloadTest.test_bytes_land_in_one_file
 ## 代码约定
 
 - **注释和面向用户的文字一律中文**；注释解释「为什么」，不解释「这行在干什么」。
-- 只用标准库能解决的事就别加依赖。确实需要新依赖时：先在 issue 里说明理由，
-  再改 `requirements.txt`、README 的「环境要求」和 CI。
-- `ui.py` 和 `bootstrap.py` 只依赖标准库。`bootstrap.py` 还额外要求**不写
-  `from __future__ import annotations`**——它是「Python 版本太老」这条报错的出口，
-  必须能在 3.7 上解析成功。
-- 需要 Python 3.8 兼容的模块，文件头保留 `from __future__ import annotations`，
-  这样 `Path | None` 这类写法在 3.8 上也不会炸。
+- 优先用成熟库减少代码：现有的 `requests` / `httpx` / `rich` / `truststore` 都是这个原则的结果。
+  新增依赖前先在 issue 里说清价值，总数控制在 5 个以内，并同步 `requirements.txt`、
+  README 的「环境要求」和 CI。
+- 最低支持 Python 3.10，可以直接用 `Path | None` 这类语法，不必再加
+  `from __future__ import annotations`。
+- `bootstrap.py` 是个例外：它只用标准库，且不写 `from __future__ import annotations`，
+  因为它是「Python 版本太老 / 缺依赖」这条报错的出口，自己必须最先能跑起来。
 - 所有可预期的失败都转成带中文说明的异常：`gh.GitHubError` / `dl.DownloadError`。
   界面层负责显示，不要 `print` 一句就 `return None`，也不要裸 `except:` 吞掉错误。
 - 写到用户磁盘的东西必须原子化：先 `.tmp` 再 `replace()`，失败时删掉临时文件后重新抛出。

@@ -29,7 +29,15 @@ FINE_GRAINED_URL = "https://github.com/settings/personal-access-tokens/new"
 
 
 class GitHubError(Exception):
-    """API 调用失败的通用异常，message 面向用户可读。"""
+    """API 调用失败的通用异常，message 面向用户可读。
+
+    status_code 记录触发异常的 HTTP 状态码（网络层错误为 None），供调用方
+    区分限流（403/429）等情况，不必去解析文案。
+    """
+
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class NotFoundError(GitHubError):
@@ -37,7 +45,7 @@ class NotFoundError(GitHubError):
 
 
 class RateLimitedError(GitHubError):
-    """API 调用超出限额。"""
+    """API 调用超出限额（HTTP 403 限流或 429）。"""
 
 
 def resolve_token(cli_token: str | None = None) -> str:
@@ -91,8 +99,8 @@ def request_json(url: str, params: dict | None = None, token: str = "") -> tuple
         raise GitHubError(f"代理连接失败，请检查 HTTP_PROXY / HTTPS_PROXY 配置：{exc}") from exc
     except requests.exceptions.SSLError as exc:
         raise GitHubError(
-            "SSL 证书校验失败：程序已自动信任系统证书，若仍报错，请确认代理工具（Watt Toolkit /\n"
-            "      Charles / 企业网关）的根证书已安装到系统，或手动设置 REQUESTS_CA_BUNDLE 指向它的 PEM 文件。\n"
+            "SSL 证书校验失败：程序已通过 truststore 信任系统证书，若仍报错，请确认代理工具（Watt Toolkit /\n"
+            "      Charles / 企业网关）的根证书已安装到系统；也可手动设置 REQUESTS_CA_BUNDLE 指向它的 PEM 文件。\n"
             f"      原始错误：{exc}"
         ) from exc
     except requests.exceptions.ConnectionError as exc:
@@ -113,20 +121,25 @@ def request_json(url: str, params: dict | None = None, token: str = "") -> tuple
     msg = data.get("message", "") if isinstance(data, dict) else ""
 
     if resp.status_code == 404:
-        raise NotFoundError(msg or "资源不存在")
+        raise NotFoundError(msg or "资源不存在", resp.status_code)
+    # 429 与 403 限流都归到 RateLimitedError：两者都表示「别再打了」，调用方据此停批。
+    if resp.status_code == 429 or (resp.status_code in (401, 403) and "rate limit" in msg.lower()):
+        reset_hint = resp.headers.get("X-RateLimit-Reset", "")
+        raise RateLimitedError(
+            f"API 调用已达上限：{msg}。额度重置时间戳：{reset_hint or '未知'}\n"
+            "      配一个 Token 可把限额从 60 次/小时提升到 5000 次/小时：\n"
+            f"      {TOKEN_CREATE_URL}\n"
+            "      菜单里按 0 可以直接打开这个页面并粘贴保存。",
+            resp.status_code,
+        )
     if resp.status_code in (401, 403):
-        if "rate limit" in msg.lower():
-            reset_hint = resp.headers.get("X-RateLimit-Reset", "")
-            raise RateLimitedError(
-                f"API 调用已达上限：{msg}。额度重置时间戳：{reset_hint or '未知'}\n"
-                "      配一个 Token 可把限额从 60 次/小时提升到 5000 次/小时：\n"
-                f"      {TOKEN_CREATE_URL}\n"
-                "      菜单里按 0 可以直接打开这个页面并粘贴保存。"
-            )
-        raise GitHubError(f"鉴权失败或权限不足（HTTP {resp.status_code}）：{msg or '请确认 Token 有效且能访问该仓库'}")
+        raise GitHubError(
+            f"鉴权失败或权限不足（HTTP {resp.status_code}）：{msg or '请确认 Token 有效且能访问该仓库'}",
+            resp.status_code,
+        )
     if resp.status_code == 422:
-        raise GitHubError(f"请求参数有误（HTTP 422）：{msg}")
-    raise GitHubError(f"API 请求失败（HTTP {resp.status_code}）：{msg or resp.text[:200]}")
+        raise GitHubError(f"请求参数有误（HTTP 422）：{msg}", resp.status_code)
+    raise GitHubError(f"API 请求失败（HTTP {resp.status_code}）：{msg or resp.text[:200]}", resp.status_code)
 
 
 def normalize_repo(text: str) -> tuple[str, str] | tuple[None, None]:

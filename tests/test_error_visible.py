@@ -348,6 +348,24 @@ class RepoLinkTest(unittest.TestCase):
         self.assertTrue(proceed)
         self.assertEqual(self.opened, [])
 
+    def test_back_hint_is_not_duplicated_in_choose_prompt(self):
+        """ui.choose 自己会追加「（0 返回）：」，调用方不能再写一遍。"""
+        saved_choose = ui.choose
+        prompts = []
+
+        def spy(prompt, count, allow_zero=False):
+            prompts.append(prompt)
+            return 0
+
+        ui.choose = spy
+        self.addCleanup(setattr, ui, "choose", saved_choose)
+        with redirect_stdout(io.StringIO()):
+            app.offer_repo_gateway("a/b", {})
+            app.offer_browser([("Release 发布页", "https://github.com/a/b/releases/tag/v1")])
+        self.assertEqual(len(prompts), 2)
+        for prompt in prompts:
+            self.assertNotIn("0 返回", prompt, "调用方传入的 prompt 不该自带返回提示")
+
 
 def hold_token_env():
     previous = os.environ.pop("GITHUB_TOKEN", None)

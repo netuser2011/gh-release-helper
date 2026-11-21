@@ -15,7 +15,7 @@ import sys
 import time
 import traceback
 
-MIN_PYTHON = (3, 8)
+MIN_PYTHON = (3, 10)
 
 
 def _crash_log_path():
@@ -75,8 +75,8 @@ def ensure_runtime():
             "双击 Run.bat 会在首次运行时自动执行上面这条；手动运行请先确认它装成功了。" + hint,
             err,
         )
-    # 让 requests 信任系统证书：Watt Toolkit 等代理工具的根证书装在系统里，
-    # certifi 不认会报 SSL 错误。导出失败也不影响运行，所以放在这里顺带做。
+    # 让 requests / httpx 信任系统证书：Watt Toolkit 等代理工具的根证书装在系统里，
+    # certifi 不认会报 SSL 错误。truststore 注入失败也不影响运行，所以顺带做。
     try:
         import syscert
 

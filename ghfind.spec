@@ -6,7 +6,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=['truststore._api', 'truststore._windows', 'truststore._openssl'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -21,7 +21,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='ghfind',
+    name='GH Downloader',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -32,6 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=r'C:\Users\彭程\Desktop\gh-release-helper\icon.ico',
 )
 coll = COLLECT(
     exe,
@@ -40,5 +41,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name='ghfind',
+    name='GH Downloader',
 )

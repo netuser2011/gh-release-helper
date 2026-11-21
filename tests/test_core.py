@@ -13,6 +13,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
+import httpx
 import requests
 
 import cli
@@ -111,8 +112,34 @@ class RequestErrorTest(unittest.TestCase):
 
     def test_404_maps_to_not_found(self):
         patch_get(self, resp=FakeResponse(404, {"message": "Not Found"}))
-        with self.assertRaises(gh.NotFoundError):
+        with self.assertRaises(gh.NotFoundError) as ctx:
             gh.get_latest_release("no/such")
+        self.assertEqual(ctx.exception.status_code, 404)
+
+    def test_429_maps_to_rate_limited_with_status(self):
+        patch_get(self, resp=FakeResponse(429, {"message": "API rate limit exceeded"}))
+        with self.assertRaises(gh.RateLimitedError) as ctx:
+            gh.get_latest_release("a/b")
+        self.assertEqual(ctx.exception.status_code, 429)
+        self.assertIn("配一个 Token", str(ctx.exception))
+
+    def test_403_rate_limit_carries_status(self):
+        patch_get(self, resp=FakeResponse(403, {"message": "API rate limit exceeded"}))
+        with self.assertRaises(gh.RateLimitedError) as ctx:
+            gh.get_latest_release("a/b")
+        self.assertEqual(ctx.exception.status_code, 403)
+
+    def test_bad_token_error_carries_status(self):
+        patch_get(self, resp=FakeResponse(401, {"message": "Bad credentials"}))
+        with self.assertRaises(gh.GitHubError) as ctx:
+            gh.get_latest_release("a/b")
+        self.assertEqual(ctx.exception.status_code, 401)
+
+    def test_network_error_has_no_status(self):
+        patch_get(self, exc=requests.exceptions.ConnectionError("refused"))
+        with self.assertRaises(gh.GitHubError) as ctx:
+            gh.get_latest_release("a/b")
+        self.assertIsNone(ctx.exception.status_code)
 
     def test_rate_limit_message_suggests_token(self):
         patch_get(
@@ -342,16 +369,15 @@ class DownloadTest(unittest.TestCase):
         self.addCleanup(setattr, dl.ui, "is_tty", saved)
 
     def patch_stream(self, chunks, headers=None, status=200, exc=None):
+        from contextlib import contextmanager
+
         class FakeResp:
             def __init__(self):
                 self.status_code = status
-                if headers is not None:
-                    self.headers = headers
-                else:
-                    # 默认给出与内容一致的长度，需要测「长度不符」的用例自己传 headers
-                    self.headers = {"Content-Length": str(sum(len(c) for c in chunks))}
+                self.headers = headers if headers is not None else {
+                    "Content-Length": str(sum(len(c) for c in chunks))}
 
-            def iter_content(self, chunk_size=1):
+            def iter_bytes(self, chunk_size=1):
                 if exc is not None:
                     raise exc
                 for c in chunks:
@@ -365,12 +391,24 @@ class DownloadTest(unittest.TestCase):
 
         calls = []
 
-        def fake_get(url, stream=False, timeout=None):
-            calls.append(url)
-            return FakeResp()
+        class FakeClient:
+            def __init__(self, *a, **kw):
+                pass
 
-        dl.requests = types.SimpleNamespace(get=fake_get, exceptions=requests.exceptions)
-        self.addCleanup(setattr, dl, "requests", requests)
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            @contextmanager
+            def stream(self, method, url, headers=None, **kw):
+                calls.append(url)
+                yield FakeResp()
+
+        saved = dl._client
+        dl._client = FakeClient
+        self.addCleanup(setattr, dl, "_client", saved)
         return calls
 
     def test_bytes_land_in_one_file(self):
@@ -406,7 +444,7 @@ class DownloadTest(unittest.TestCase):
         self.assertIn("HTTP 404", str(ctx.exception))
 
     def test_network_break_keeps_progress_for_resume(self):
-        self.patch_stream([b"abc"], exc=requests.exceptions.ChunkedEncodingError("closed"))
+        self.patch_stream([b"abc"], exc=httpx.ReadError("closed"))
         with self.assertRaises(dl.ResumableDownloadError) as ctx:
             dl.download("https://x/a.zip", "a.zip", self.dir)
         self.assertIn("断点", str(ctx.exception))
@@ -563,26 +601,69 @@ class ResumeTest(unittest.TestCase):
         self.addCleanup(setattr, dl.ui, "is_tty", saved)
 
     def install_get(self, handler):
-        def fake_get(url, stream=False, timeout=None, headers=None):
-            return handler(url, headers or {})
-        dl.requests = types.SimpleNamespace(get=fake_get, exceptions=requests.exceptions)
-        self.addCleanup(setattr, dl, "requests", requests)
+        from contextlib import asynccontextmanager, contextmanager
 
-    def resp(self, status, body, headers=None):
+        def make_response(url, headers):
+            return self.resp(handler(url, headers))
+
+        class FakeClient:
+            def __init__(self, *a, **kw):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            @contextmanager
+            def stream(self, method, url, headers=None, **kw):
+                yield make_response(url, headers or {})
+
+        class FakeAsyncClient:
+            def __init__(self, *a, **kw):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+            @asynccontextmanager
+            async def stream(self, method, url, headers=None, **kw):
+                yield make_response(url, headers or {})
+
+        for name, fake in (("_client", FakeClient), ("_aclient", FakeAsyncClient)):
+            saved = getattr(dl, name)
+            setattr(dl, name, fake)
+            self.addCleanup(setattr, dl, name, saved)
+
+    def resp(self, raw):
+        status, body, headers = raw
+
         class R:
             def __init__(self):
                 self.status_code = status
                 self.headers = headers or {}
                 self._body = body
-                self._sent = False
 
-            def iter_content(self, chunk_size=1):
+            def iter_bytes(self, chunk_size=1):
+                yield self._body
+
+            async def aiter_bytes(self, chunk_size=1):
                 yield self._body
 
             def __enter__(self):
                 return self
 
             def __exit__(self, *args):
+                return False
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
                 return False
         return R()
 
@@ -596,7 +677,7 @@ class ResumeTest(unittest.TestCase):
 
         def handler(url, headers):
             seen["range"] = headers.get("Range")
-            return self.resp(206, b"def", {"Content-Range": "bytes 3-5/6", "ETag": "v1"})
+            return (206, b"def", {"Content-Range": "bytes 3-5/6", "ETag": "v1"})
 
         self.install_get(handler)
         path = dl.download("https://x/a.zip", "a.zip", self.dir, etag="v1")
@@ -614,7 +695,7 @@ class ResumeTest(unittest.TestCase):
 
         def handler(url, headers):
             seen["range"] = headers.get("Range")
-            return self.resp(200, b"new!!", {"Content-Length": "5"})
+            return (200, b"new!!", {"Content-Length": "5"})
 
         self.install_get(handler)
         path = dl.download("https://x/a.zip", "a.zip", self.dir, etag="v2")
@@ -629,7 +710,7 @@ class ResumeTest(unittest.TestCase):
         }), encoding="utf-8")
 
         def handler(url, headers):
-            return self.resp(200, b"fresh", {"Content-Length": "5"})
+            return (200, b"fresh", {"Content-Length": "5"})
 
         self.install_get(handler)
         path = dl.download("https://x/a.zip", "a.zip", self.dir)
@@ -647,7 +728,7 @@ class ResumeTest(unittest.TestCase):
 
         def handler(url, headers):
             ranges.append(headers.get("Range"))
-            return self.resp(206, b"WXYZ", {"Content-Range": "bytes 4-7/8"})
+            return (206, b"WXYZ", {"Content-Range": "bytes 4-7/8"})
 
         self.install_get(handler)
         path = dl.download_parallel("https://x/tool.zip", self.dir, "tool.zip", total, 2)
@@ -669,8 +750,8 @@ class ResumeTest(unittest.TestCase):
             rng = headers.get("Range", "")
             start, end = (int(x) for x in rng.split("=", 1)[1].split("-"))
             ranges.append(rng)
-            return self.resp(206, b"A" * (end - start + 1),
-                             {"Content-Range": f"bytes {start}-{end}/8"})
+            return (206, b"A" * (end - start + 1),
+                    {"Content-Range": f"bytes {start}-{end}/8"})
 
         self.install_get(handler)
         path = dl.download_parallel("https://x/tool.zip", self.dir, "tool.zip", 8, 2)

@@ -57,6 +57,14 @@ class HumanTest(unittest.TestCase):
         self.assertIn("1.0 KB", line)
         self.assertNotIn("ETA", line)
 
+    def test_progress_render_uses_rich_and_keeps_fields(self):
+        rendered = ui.progress_render(1024, 2048, 1024.0)
+        self.assertIn("50.0%", rendered)
+        self.assertIn("1.0 KB/2.0 KB", rendered)
+        self.assertIn("ETA 1s", rendered)
+        # rich 的进度条是纯破折号/方块，不再是自研的 █/░ 组合
+        self.assertNotIn("█", rendered)
+
 
 class ColorSwitchTest(unittest.TestCase):
     def setUp(self):

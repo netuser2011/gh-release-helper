@@ -1,39 +1,36 @@
 # -*- coding: utf-8 -*-
-"""syscert：自动信任系统证书的导出与降级逻辑，全程用临时目录，不碰真实用户目录。"""
+"""syscert：truststore 注入、尊重用户设置与失败降级，全程不打真实网络。"""
 
 import os
-import tempfile
-import types
 import unittest
-from pathlib import Path
 
 import syscert
 
 
 class SystemCertTest(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
-
         self.saved_env = os.environ.get(syscert.CA_ENV)
         os.environ.pop(syscert.CA_ENV, None)
         self.addCleanup(self._restore_env)
 
-        self.saved_dir, self.saved_file = syscert._CERT_DIR, syscert._CA_FILE
         self.saved_last = dict(syscert._last)
-        self.saved_certifi = syscert._certifi_pems
-        self.saved_system = syscert._system_pems
-        syscert._CERT_DIR = self.root / "certs"
-        syscert._CA_FILE = self.root / "certs" / "ca-bundle.pem"
-        self.addCleanup(self._restore_paths)
+        self.saved_count = syscert._system_cert_count
+        self.addCleanup(self._restore_state)
 
-    def _restore_paths(self):
-        syscert._CERT_DIR, syscert._CA_FILE = self.saved_dir, self.saved_file
-        syscert._certifi_pems = self.saved_certifi
-        syscert._system_pems = self.saved_system
-        syscert._last.clear()
-        syscert._last.update(self.saved_last)
+        self.calls = []
+        self.failure = None
+
+        def fake_inject():
+            self.calls.append(1)
+            if self.failure is not None:
+                raise self.failure
+
+        self.saved_truststore = None
+        import sys as _sys
+        if "truststore" in _sys.modules:
+            self.saved_truststore = _sys.modules["truststore"]
+        _sys.modules["truststore"] = type("M", (), {"inject_into_ssl": staticmethod(fake_inject)})
+        self.addCleanup(self._restore_truststore)
 
     def _restore_env(self):
         if self.saved_env is None:
@@ -41,53 +38,53 @@ class SystemCertTest(unittest.TestCase):
         else:
             os.environ[syscert.CA_ENV] = self.saved_env
 
-    def test_exports_bundle_and_sets_env(self):
-        sample = "-----BEGIN CERTIFICATE-----\nQUJD\n-----END CERTIFICATE-----\n"
-        syscert._certifi_pems = lambda: [sample]
-        syscert._system_pems = lambda: [sample, sample]  # 重复要去重
+    def _restore_state(self):
+        syscert._system_cert_count = self.saved_count
+        syscert._last.clear()
+        syscert._last.update(self.saved_last)
 
+    def _restore_truststore(self):
+        import sys as _sys
+        if self.saved_truststore is None:
+            del _sys.modules["truststore"]
+        else:
+            _sys.modules["truststore"] = self.saved_truststore
+
+    def test_injects_and_reports_enabled(self):
+        syscert._system_cert_count = lambda: 189
         self.assertTrue(syscert.ensure_system_certs())
-        self.assertEqual(os.environ[syscert.CA_ENV], str(syscert._CA_FILE))
-        data = syscert._CA_FILE.read_text(encoding="ascii")
-        self.assertEqual(data.count("BEGIN CERTIFICATE"), 1, "重复证书只留一份")
+        self.assertEqual(self.calls, [1])
+        self.assertIn("已信任系统证书 189 张", syscert.describe())
+        self.assertIn("truststore", syscert.describe())
+
+    def test_no_cert_count_still_reports_enabled(self):
+        syscert._system_cert_count = lambda: 0
+        self.assertTrue(syscert.ensure_system_certs())
         self.assertIn("已信任系统证书", syscert.describe())
 
-    def test_merges_certifi_and_system(self):
-        a = "-----BEGIN CERTIFICATE-----\nQQ==\n-----END CERTIFICATE-----\n"
-        b = "-----BEGIN CERTIFICATE-----\nQg==\n-----END CERTIFICATE-----\n"
-        syscert._certifi_pems = lambda: [a]
-        syscert._system_pems = lambda: [b]
-
-        syscert.ensure_system_certs()
-        self.assertEqual(syscert._CA_FILE.read_text(encoding="ascii").count("BEGIN CERTIFICATE"), 2)
-
     def test_respects_existing_env(self):
-        os.environ[syscert.CA_ENV] = str(self.root / "my.pem")
-        called = []
-        syscert._certifi_pems = lambda: called.append(1) or []
+        os.environ[syscert.CA_ENV] = "/tmp/my.pem"
         self.assertFalse(syscert.ensure_system_certs())
-        self.assertEqual(called, [], "用户已设置就不该再导出")
-        self.assertEqual(os.environ[syscert.CA_ENV], str(self.root / "my.pem"))
+        self.assertEqual(self.calls, [], "用户已设置就不该注入")
+        self.assertEqual(os.environ[syscert.CA_ENV], "/tmp/my.pem")
+        self.assertIn("尊重用户设置", syscert.describe())
 
-    def test_export_failure_degrades_silently(self):
-        def boom():
-            raise RuntimeError("模拟系统证书读取失败")
-        syscert._certifi_pems = lambda: []
-        syscert._system_pems = boom
+    def test_injection_failure_degrades_silently(self):
+        self.failure = RuntimeError("模拟注入失败")
         self.assertFalse(syscert.ensure_system_certs())
-        self.assertNotIn(syscert.CA_ENV, os.environ)
         self.assertIn("未生效", syscert.describe())
+        self.assertNotIn(syscert.CA_ENV, os.environ)
 
-    def test_no_certificates_is_not_an_error(self):
-        syscert._certifi_pems = lambda: []
-        syscert._system_pems = lambda: []
-        self.assertFalse(syscert.ensure_system_certs())
-        self.assertIn("没有可导出", syscert.describe())
+    def test_repeated_calls_are_safe(self):
+        syscert._system_cert_count = lambda: 10
+        self.assertTrue(syscert.ensure_system_certs())
+        self.assertTrue(syscert.ensure_system_certs())
+        self.assertEqual(len(self.calls), 2, "truststore 的注入本身是幂等的")
 
-    def test_real_environment_exports_something(self):
-        """真实环境下原始实现至少能导出证书（Windows 上含代理工具根证书）。"""
-        pems = self.saved_system()  # setUp 里保存的原始实现，不受本测试外 mock 影响
-        self.assertGreater(len(pems), 0)
+    def test_real_truststore_is_importable(self):
+        import truststore
+
+        self.assertTrue(hasattr(truststore, "inject_into_ssl"))
 
 
 if __name__ == "__main__":

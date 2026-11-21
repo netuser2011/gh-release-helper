@@ -1,46 +1,74 @@
-# ghfind v1.1.0
+# GH Downloader v1.2.0
 
 > 终端里的 GitHub Release 下载助手 —— 搜索、收藏、一键下载。
 
-这是 v1.0.0 之后的第一个功能更新版本，聚焦三件事：**下载更稳、断网能续、代理工具不再报 SSL 错**。旧的 v1.0.0 发行版保留不动，本版为最新推荐版本。
+本版为 **功能更新版**：新增「批量检查更新」与「更新说明全屏查看」，界面改用 rich 渲染，
+下载核心重写为 asyncio + httpx，并用 truststore 自动信任系统证书。安装版与便携版同步更新。
 
 ---
 
 ## 下载
 
-| 文件 | 适用系统 | 说明 |
-| --- | --- | --- |
-| `ghfind-v1.1.0-win64.zip` | Windows 64 位 | 解压后双击 `ghfind.exe` 即可，**无需安装 Python** |
+| 文件 | 说明 |
+| --- | --- |
+| `GHDownloader-Windows-V1.2.0-Setup.exe` | **推荐。** 安装版，双击运行，自动配置快捷方式与卸载项 |
+| `GHDownloader-Windows-V1.2.0.zip` | 便携版，解压后直接运行 `GH Downloader.exe`，无需安装 |
 
-解压后目录里是 `ghfind.exe` 和 `_internal/`，二者需放在同一目录，不要单独移动 exe。
+两种文件均无需安装 Python。安装版与便携版功能完全一致。
+
+### 命令行下载（wget / curl）
+
+```bash
+# 安装版（Windows）
+wget "https://github.com/netuser2011/gh-release-helper/releases/download/v1.2.0/GHDownloader-Windows-V1.2.0-Setup.exe"
+
+# 便携版
+wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/releases/download/v1.2.0/GHDownloader-Windows-V1.2.0.zip"
+```
 
 ---
 
-## 本版更新内容
+## 本版变更
 
-### ✨ 新增
+### 新增
 
-- **断点续传**：下载中途断网或按 Ctrl+C，不再删除半截文件，而是保留进度；下次重跑同一下载只补未完成的段。服务器文件发生变化（ETag / 长度不符）时自动从头下载，避免新旧内容错位。
-- **无资产时的网页跳转**：Release 没上传资产时，不再只打印一句提示就结束，而是列出 **Release 发布页 / GitHub 仓库主页 / 作者官网** 供选择跳转；搜索选中仓库后也能先去网页看看再决定要不要下载。
-- **自动信任系统证书**：启动时自动把系统证书（含 Watt Toolkit / SteamTools 等代理工具装的根证书）合并进 requests 的信任库。**开着代理工具也不会再报 `SSL 证书校验失败`**，无需手动导出证书或退出代理。主菜单新增「证书」状态行可查看是否生效。
+- **菜单 5「检查更新」**：批量检查收藏仓库的最新 Release，表格对比上次/最新 tag 与更新摘要，带限流保护（无 Token 上限 40 个、403/429 自动停止）。
+- **更新说明全屏查看**：搜索结果里输入 `d` + 编号（如 `d3`）打开新窗口，rich Markdown 排版，↑/↓ 滚动、Q 返回，不跳浏览器。
 
-### 🔧 改进
+### 改进
 
-- 多线程分段下载（≥ 2 MB 且支持 Range 时，默认 4 线程，`GHR_THREADS` 可调 1–8）。
-- 多线路测速择优：1 条直连 + 6 个公共镜像，并发测速挑最快的一条；全不通时逐条列出原因。
-- 文档与程序现状同步：README / CHANGELOG 已更新到本版。
+- **rich 渲染界面**：表格、横幅与进度条改用 rich，自动列宽，中文/emoji 对齐更稳。
+- **truststore 信任系统证书**：启动时注入系统证书存储，开代理工具不再报 SSL 错误，无需手动导出 PEM；已设 `REQUESTS_CA_BUNDLE` 时不覆盖。
+- **downloader 重写为 asyncio + httpx**：删掉 threading/Lock/ThreadPoolExecutor，测速与分段下载改用 `asyncio.gather`，进度条交给 rich，代码量比原先少 30%；断点续传、多线路测速、文件名净化等行为保持不变。
 
-### 🔒 安全
+### 依赖变化
 
-- 系统证书信任只纳入本机**已受信任**的 CA（与浏览器一致），不降低安全基线；不新增第三方依赖。
-- 断点续传的进度记录包含 URL / 总长 / ETag，文件更新后不复用旧进度。
-- 镜像前缀强制 HTTPS、线路只认白名单，不接受临时输入的第三方地址。
+- 新增 `httpx`（下载与测速）、`rich`（界面与 Markdown）、`truststore`（系统证书）；`requests` 仍用于 GitHub API。共 4 个第三方库，`pip install -r requirements.txt` 一句装齐。
+
+---
+
+## 安装说明
+
+**安装版（推荐）：**
+
+1. 双击 `GHDownloader-Windows-V1.2.0-Setup.exe`
+2. 按向导选择安装路径（默认 `C:\Program Files\GH Downloader`）
+3. 完成后桌面出现快捷方式，开始菜单同步创建
+4. 卸载：设置 → 应用 → 已安装的应用 → 搜索 "GH Downloader" → 卸载
+
+**便携版：**
+
+1. 解压 ZIP 到任意目录
+2. 双击 `GH Downloader.exe` 即可运行
+3. 删除该目录即为卸载，无残留
+
+> 注意：`GH Downloader.exe` 与 `_internal/` 文件夹需保持在同一目录，不要单独移动 exe。
 
 ---
 
 ## 从源码运行
 
-需要 Python 3.8+ 和 `requests`：
+需要 Python 3.10+ 和 `requests` / `httpx` / `rich` / `truststore`：
 
 ```bash
 git clone https://github.com/netuser2011/gh-release-helper
@@ -48,8 +76,6 @@ cd gh-release-helper
 pip install -r requirements.txt
 python main.py
 ```
-
-想直接打印下载链接：`python cli.py owner/repo`
 
 ---
 

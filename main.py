@@ -6,13 +6,14 @@
     python main.py files-community/Files   直接跳到该仓库的 Release
     python main.py files           先搜索再选编号
 
-菜单四项：1 搜索仓库 / 2 查看收藏 / 3 添加收藏 / 4 退出。
+菜单五项：1 搜索仓库 / 2 查看收藏 / 3 添加收藏 / 4 退出 / 5 检查更新。
 """
 
 from __future__ import annotations
 
 import os
 import sys
+import time
 
 # 运行环境检查放在所有业务模块之前：Python 太老、requests 没装，都要给出看得懂、
 # 且不会随窗口一起消失的提示（细节见 bootstrap.py）。
@@ -26,12 +27,25 @@ from pathlib import Path
 import downloader as dl
 import favorites as fav
 import github_api as gh
+import pager
 import syscert
 import ui
 
 # 类型选择时优先给出的两种格式（其余按资产里实际出现的扩展名动态补上）
 PREFERRED_TYPES = ["zip", "exe"]
+# 只给收藏列表沿用；搜索结果的简介列已改为更新说明入口
 DESC_WIDTH = 40
+
+# 一次搜索内复用同一份 release：看更新说明与随后下载不该各请求一次
+_release_cache: dict[str, dict] = {}
+
+
+def get_release(repo: str, token: str) -> dict:
+    """取最新 release，同一次运行内按仓库名缓存，避免重复消耗 API 配额。"""
+    key = repo.lower()
+    if key not in _release_cache:
+        _release_cache[key] = gh.get_latest_release_or_explain(repo, token)
+    return _release_cache[key]
 
 # Token 来源，仅用于主界面提示
 token_source = ""
@@ -100,34 +114,72 @@ def prompt_keyword(tip: str) -> str | None:
     return keyword or None
 
 
+def _render_search_table(keyword: str, total: int, items: list[dict]) -> None:
+    """画一次搜索结果：简介列只放更新说明入口，不铺长文字。"""
+    print(ui.c(f'\n  搜索 "{keyword}" 命中 {total} 个仓库，按星标排序列出前 {len(items)} 个：\n', ui.BOLD))
+    rows = []
+    for i, item in enumerate(items, 1):
+        rows.append([
+            str(i),
+            item.get("full_name", "(未知)"),
+            format_stars(int(item.get("stargazers_count", 0) or 0)),
+            item.get("language") or "-",
+            ui.c(f"[d{i} 更新说明]", ui.CYAN),
+        ])
+    ui.table(rows, ["#", "仓库（作者/名字）", "星标", "语言", "更新说明"])
+
+
+def show_release_notes(item: dict, token: str) -> None:
+    """全屏查看某个仓库最新 Release 的正文；失败只提示，不打断搜索。"""
+    repo = item.get("full_name", "")
+    try:
+        release = get_release(repo, token)
+    except gh.GitHubError as exc:
+        print(ui.c(f"\n  ✖ 获取更新说明失败：{exc}", ui.RED))
+        return
+    tag = release.get("tag_name") or "(无 tag)"
+    pager.show(release.get("body") or "", title=f"{repo}  ·  {tag}")
+
+
 def search_and_pick(keyword: str, token: str) -> dict | None:
-    """搜索仓库并让用户按编号选一个，返回选中那条 API 数据。"""
+    """搜索仓库并让用户按编号选一个；输入 d+编号 可先看更新说明。"""
     print(ui.c(f'\n  🔎 正在搜索仓库名包含 "{keyword}" 的项目 ...', ui.DIM), flush=True)
     items, total = gh.search_repos(keyword, token, limit=10)
     if not items:
         print(ui.c(f"  ⚠ 没有找到名字包含 \"{keyword}\" 的仓库，换个关键词试试。", ui.YELLOW))
         return None
 
-    print(ui.c(f'\n  搜索 "{keyword}" 命中 {total} 个仓库，按星标排序列出前 {len(items)} 个：\n', ui.BOLD))
-    rows = []
-    for i, item in enumerate(items, 1):
-        rows.append(
-            [
-                str(i),
-                item.get("full_name", "(未知)"),
-                format_stars(int(item.get("stargazers_count", 0) or 0)),
-                item.get("language") or "-",
-                ui.truncate(item.get("description") or "", DESC_WIDTH),
-            ]
-        )
-    ui.table(rows, ["#", "仓库（作者/名字）", "星标", "语言", "简介"])
+    _render_search_table(keyword, total, items)
+    while True:
+        try:
+            raw = ui.ask(ui.c("  编号选择仓库 / d+编号看更新说明（如 d3）/ 0 返回：", ui.MAGENTA)).strip()
+        except ui.UserQuit:
+            return None
 
-    num = ui.choose("  请输入编号选择仓库：", len(items), allow_zero=True)
-    if not num:
-        return None
-    chosen = items[num - 1]
-    print(ui.c(f"\n  ✔ 已选择：{chosen.get('full_name')}（⭐ {format_stars(int(chosen.get('stargazers_count', 0) or 0))}）", ui.GREEN))
-    return chosen
+        if raw.lower() in ("q", "quit", "back", "返回", "0"):
+            return None
+
+        # dN：查看第 N 个仓库的 Release 正文，看完重画表格继续问
+        if raw.lower().startswith("d"):
+            digits = raw[1:].strip()
+            if digits.isdigit() and 1 <= int(digits) <= len(items):
+                show_release_notes(items[int(digits) - 1], token)
+                _render_search_table(keyword, total, items)
+            else:
+                print(ui.c(f"  ⚠ 没有第 {digits or '?'} 个仓库，范围 d1-d{len(items)}。", ui.YELLOW))
+            continue
+
+        if not raw.isdigit():
+            print(ui.c("  ⚠ 请输入编号、d+编号看更新说明，或 0 返回。", ui.YELLOW))
+            continue
+        num = int(raw)
+        if not 1 <= num <= len(items):
+            print(ui.c(f"  ⚠ 编号超出范围，请输入 1-{len(items)}。", ui.YELLOW))
+            continue
+
+        chosen = items[num - 1]
+        print(ui.c(f"\n  ✔ 已选择：{chosen.get('full_name')}（⭐ {format_stars(int(chosen.get('stargazers_count', 0) or 0))}）", ui.GREEN))
+        return chosen
 
 
 def format_stars(num: int) -> str:
@@ -351,7 +403,7 @@ def offer_browser(links: list[tuple[str, str]]) -> None:
     print(ui.c("\n  可以打开这些页面：", ui.BOLD))
     for i, (label, _) in enumerate(links, 1):
         print(f"   {ui.c(str(i), ui.CYAN)}. {label}")
-    num = ui.choose("  请选择（0 返回）：", len(links), allow_zero=True)
+    num = ui.choose("  请选择：", len(links), allow_zero=True)
     if not num:
         return
     label, url = links[num - 1]
@@ -373,7 +425,7 @@ def offer_repo_gateway(repo: str, chosen: dict) -> bool:
     print("   " + ui.c("1. 查看 Release 资产并下载（推荐）", ui.CYAN))
     for i, (label, _) in enumerate(links, 2):
         print("   " + ui.c(f"{i}. 打开{label}", ui.CYAN))
-    num = ui.choose("  请选择（0 返回）：", len(links) + 1, allow_zero=True)
+    num = ui.choose("  请选择：", len(links) + 1, allow_zero=True)
     if not num:
         return False
     if num == 1:
@@ -390,7 +442,7 @@ def browse_release(repo: str, token: str, store: dict | None = None, fav_key: st
                    repo_meta: dict | None = None) -> None:
     """展示某个仓库最新 release 的资产，并进入「选文件 → 选类型 → 下载」流程。"""
     print(ui.c(f"\n  ⏳ 正在获取 {repo} 的最新 release ...", ui.DIM), flush=True)
-    release = gh.get_latest_release_or_explain(repo, token)
+    release = get_release(repo, token)
     tag = release.get("tag_name") or "(无 tag)"
     title = f"{repo}  ·  {tag}"
     name = release.get("name") or ""
@@ -531,6 +583,95 @@ def flow_add_favorite(store: dict, token: str) -> None:
         browse_release(key, token, store, fav_key=key, repo_meta=chosen)
 
 
+def flow_check_updates(store: dict, token: str) -> None:
+    """5 检查更新：批量查询收藏仓库的最新 Release，汇总后回写 tag 与资产缓存。
+
+    限流保护分三层：无 Token 超过 40 个直接拒绝；超过 30 个先确认；
+    请求前查剩余配额、遇 403/429 立即停批。全程顺序请求，间隔 0.5 秒。
+    """
+    items = fav.entries(store)
+    total = len(items)
+    if not total:
+        print(ui.c("\n  收藏夹还是空的，先用菜单 3 添加一个常用仓库吧。", ui.YELLOW))
+        return
+
+    if not token and total > 40:
+        print(ui.c("\n  未配置 Token 时最多检查 40 个，按 0 配置 Token 后重试。", ui.YELLOW))
+        return
+
+    targets = items
+    if total > 30:
+        if not ui.confirm(f"共 {total} 个仓库，全部检查？(Y/N)", default=False):
+            targets = items[:30]
+            print(ui.c(f"  已只取前 {len(targets)} 个检查。", ui.DIM))
+
+    rows: list[list[str]] = []
+    pending: list[tuple[str, str, list[dict]]] = []
+    notice = ""
+
+    for index, (key, meta) in enumerate(targets):
+        if index:
+            time.sleep(0.5)
+
+        # /rate_limit 本身不计费；查询失败就跳过预检，不让增强项挡住主流程
+        try:
+            quota = gh.rate_limit_status(token)
+        except gh.GitHubError:
+            quota = {}
+        limit = int(quota.get("limit", 0) or 0)
+        remaining = int(quota.get("remaining", 0) or 0)
+        if limit > 0 and remaining < 3:
+            notice = ui.c(
+                f"\n  API 剩余配额不足 3 次（当前剩余 {remaining} 次），已提前停止。"
+                "配置 Token 或稍后再试。",
+                ui.YELLOW,
+            )
+            break
+
+        last_tag = str(meta.get("last_tag") or "")
+        try:
+            release = gh.get_latest_release_or_explain(key, token)
+        except gh.GitHubError as exc:
+            if isinstance(exc, gh.RateLimitedError) or getattr(exc, "status_code", None) in (403, 429):
+                left = len(targets) - index - 1
+                notice = ui.c(
+                    f"\n  已触发限流，剩余 {left} 个未检查。配置 Token 或稍后再试。",
+                    ui.RED,
+                )
+                break
+            rows.append([
+                str(index + 1), key, last_tag or "-", "-", "— 无变化",
+                ui.truncate("查询失败：" + " ".join(str(exc).split()), 50),
+            ])
+            continue
+
+        tag = str(release.get("tag_name") or "")
+        state = "↑ 新版本" if last_tag and tag and last_tag != tag else "— 无变化"
+        summary = " ".join(str(release.get("body") or "").split())[:50] or "-"
+        rows.append([str(index + 1), key, last_tag or "-", tag or "-", state, summary])
+
+        cache = [
+            {"name": a.get("name", ""), "size": int(a.get("size", 0) or 0),
+             "url": a.get("browser_download_url", "")}
+            for a in gh.release_assets(release)
+        ]
+        pending.append((key, tag, cache))
+
+    print()
+    if rows:
+        ui.table(rows, ["#", "仓库", "上次 tag", "最新 tag", "状态", "更新摘要"])
+    else:
+        print(ui.c("  没有可显示的检查结果。", ui.YELLOW))
+    if notice:
+        print(notice)
+
+    for key, tag, cache in pending:
+        fav.update_release(store, key, tag, cache)
+    fav.save(store)
+    if pending:
+        print(ui.c(f"\n  ✔ 已回写 {len(pending)} 条收藏记录。", ui.GREEN))
+
+
 # ---------- 主循环 ----------
 
 
@@ -539,16 +680,17 @@ MENU_ITEMS = [
     ("2", "查看收藏", "调出已存仓库的下载链接，支持直接下载"),
     ("3", "添加收藏", "把常用仓库存进 favorites.json"),
     ("4", "退出", "保存收藏并退出"),
+    ("5", "检查更新", "批量检查收藏仓库的最新 Release"),
 ]
 
-# 四大流程之外的辅助项：不占编号 1-4，也不参与 dispatch()
+# 五大流程之外的辅助项：不占编号 1-5，也不参与 dispatch()
 SUPPORT_ITEMS = [
     ("0", "配置 Token", "打开 GitHub Token 页面，粘贴后存本地 .github_token，解除限流"),
 ]
 
 
 def render_menu(store: dict, token: str, notice: str = "") -> None:
-    """画主菜单：1-4 是四大流程，0 是辅助的 Token 配置。
+    """画主菜单：1-5 是五大流程，0 是辅助的 Token 配置。
 
     notice 是上一条错误/提示，清屏后原样贴回，避免报错一闪而过。
     """
@@ -581,6 +723,8 @@ def dispatch(choice: str, store: dict, token: str) -> str:
         flow_favorites(store, token)
     elif choice == "3":
         flow_add_favorite(store, token)
+    elif choice == "5":
+        flow_check_updates(store, token)
     elif choice == "4":
         return "exit"
     else:
@@ -665,7 +809,7 @@ def main() -> int:
                     if action == "again":
                         # 重画菜单即可，不用多按一次回车；直接回车不配挨一句"无效选项"
                         if choice:
-                            notice = ui.c("  ⚠ 无效选项，请输入 1-4（0 配置 Token）。", ui.YELLOW)
+                            notice = ui.c("  ⚠ 无效选项，请输入 1-5（0 配置 Token）。", ui.YELLOW)
                     elif action == "pause":
                         ui.ask(ui.c("\n  回车返回主菜单 ...", ui.GREY))
             except ui.UserQuit:

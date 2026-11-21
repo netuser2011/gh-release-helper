@@ -1,6 +1,6 @@
 # GitHub Release 交互式下载助手
 
-一个跑在终端里的 GitHub Release 下载工具：不知道作者是谁也能用——只输入仓库名就能搜出候选仓库，按编号选择，收藏常用项目，然后把 Release 资产下载到本地。支持多线程分段与断点续传、多线路测速择优，也能自动信任系统证书，开着代理工具照样用。
+一个跑在终端里的 GitHub Release 下载工具：不知道作者是谁也能用——只输入仓库名就能搜出候选仓库，按编号选择，收藏常用项目，然后把 Release 资产下载到本地。支持多线程分段与断点续传、多线路测速择优、Markdown 排版的更新说明，也能自动信任系统证书，开着代理工具照样用。
 
 全部走 GitHub 官方 REST API，不解析网页 HTML。
 
@@ -14,41 +14,66 @@
 │ 搜索 · 收藏 · 一键下载                   │
 ╰──────────────────────────────────────────╯
   收藏夹 3 个   Token 已配置 · 本地 .github_token   下载目录 C:\Users\me\Downloads
-  证书 已信任系统证书 189 张
+  证书 已信任系统证书（truststore）
 
-   1  搜索仓库  —  按名字找项目，选编号看 Release 资产并下载
+   1  搜索仓库  —  按名字找项目，选编号看 Release 资产并下载；d+编号看更新说明
    2  查看收藏  —  调出已存仓库的下载链接，支持直接下载
    3  添加收藏  —  把常用仓库存进 favorites.json
    4  退出      —  保存收藏并退出
+   5  检查更新  —  批量检查收藏仓库最新 Release
    0  配置 Token —  打开 GitHub Token 页面，粘贴后存本地 .github_token，解除限流
 ```
 
 ## 功能特性
 
-- **不知道作者也能找**：只输入仓库名关键词，按星标排序列出候选（作者/名字、星标、语言、简介），输入编号即可。
+- **不知道作者也能找**：只输入仓库名关键词，按星标排序列出候选（作者/名字、星标、语言、更新说明入口）。输入 `d` + 编号（如 `d3`）可全屏查看该仓库最新 Release 的更新说明：Markdown 排版、上下键滚动、Q 返回列表，不跳浏览器。
 - **收藏夹持久化**：以 `作者名/仓库名` 为键写入 `favorites.json`，附带星标、简介与上次看到的资产清单，重启后仍在。
+- **批量检查更新**：菜单按 `5`，一次遍历全部收藏仓库的最新 Release，表格对比上次 tag 与最新版本，展示更新摘要；内置限流保护（无 Token 限制 40 个、403/429 自动停止）。
 - **三种下载方式，各做一件事**：终端多线程下载到本地、唤起系统默认浏览器、只打印下载链接。选本地下载时带实时进度条（百分比 / 速度 / 剩余时间）。
-- **多线程分段**：文件 ≥ 2 MB 且服务器支持 `Range` 时自动切成多段并发下载（默认 4 线程，`GHR_THREADS` 可调 1-8），完成后按总字节数核对。
+- **并发分段**：文件 ≥ 2 MB 且服务器支持 `Range` 时自动切成多段，用 asyncio 并发下载（默认 4 路，`GHR_THREADS` 可调 1-8），完成后按总字节数核对。
 - **断点续传**：网络中断或按 Ctrl+C 会保留 `.part` 和进度记录，下次重跑只补未完成的段；文件变化（ETag / 长度不符）则自动从头下载，不会串味。
 - **多线路测速择优**：内置 1 条直连 + 6 个公共镜像的 HTTPS 白名单，选「自动测速」时并发探测各线路吞吐，挑最快的一条；全都不通时逐条列出原因。镜像不接受临时输入，防止文件被第三方替换。
 - **按类型筛选**：先问你要 ZIP 还是 EXE（也支持 MSI、DMG、DEB 等实际存在的类型与「全部」）。
 - **没资产也有出路**：某个 Release 没上传资产时，会列出 Release 发布页、GitHub 主页与作者官网供跳转；搜索选中仓库后也能先去网页看看再决定要不要下载。
-- **代理工具免折腾**：启动时自动把 Windows 系统证书（含 Watt Toolkit / SteamTools 等代理工具装的根证书）与 certifi 合并，写入用户目录并通过 `REQUESTS_CA_BUNDLE` 交给 requests——开着代理也不再报 SSL 错误，无需手动导出证书或退出代理。已设置该环境变量时不覆盖，导出失败则静默降级。
+- **代理工具免折腾**：启动时通过 `truststore` 直接信任操作系统证书存储（含 Watt Toolkit / SteamTools 等代理工具装的根证书），无需手动导出 PEM 或退出代理。已设置 `REQUESTS_CA_BUNDLE` 时不覆盖，注入失败则静默降级。
 - **下载目录可选**：每次下载前可以选默认目录、仅本次换目录、换目录并永久记住，也可以一键恢复系统默认下载目录。
 - **只复制链接**：也可以只打印下载链接，粘进浏览器或你惯用的任何下载工具都行。
 - **一键解除限流**：菜单按 `0` 就跳到 GitHub 的 Token 创建页（链接已带 `public_repo` 权限参数），
   粘贴回来只写本地 `.github_token`；Token 不进源码、不进日志，保存后也不会再打印一遍。
-- **终端友好**：自适应列宽的表格（中英文、emoji 混排不错位），ANSI 颜色，`NO_COLOR` 或管道输出时自动降级为纯文本。
+- **终端友好**：rich 渲染的自适应列宽表格、横幅与进度条（中英文、emoji 混排不错位），ANSI 颜色，`NO_COLOR` 或管道输出时自动降级为纯文本。
 - **异常明确**：网络不通、超时、SSL 被代理拦截、仓库不存在、没有 release、API 限流，分别给出可读提示而不是裸 traceback。
 - **报错不会消失**：早期失败（Python 版本 / 缺依赖）写 `crash.log` 并等你按键；菜单里的错误会留在重画后的菜单顶部；未预料的崩溃打印完整 traceback 后落盘。
 - **上手无门槛**：所有仓库名、作者名、文件类型、保存位置都在终端里选编号或输入，不需要记任何命令行参数。
 
 ## 环境要求
 
-- Python 3.8 及以上（推荐 3.10+）
-- 一个第三方依赖：`requests`；其余全部是标准库，不依赖 rich / colorama / tqdm，也不用任何 GUI 框架（系统证书信任只用标准库 `ssl`，不需额外安装 truststore）
+- **安装版 / 便携版**：无需安装 Python，直接运行即可
+- **从源码运行**：Python 3.10 及以上，依赖 `requests` / `httpx` / `rich` / `truststore`，不用任何 GUI 框架
 
 ## 安装
+
+### 方式一：安装版（推荐，Windows）
+
+无需安装 Python，下载后双击运行安装向导即可。
+
+| 文件 | 说明 |
+| --- | --- |
+| [GHDownloader-Windows-V1.2.0-Setup.exe](https://github.com/netuser2011/gh-release-helper/releases/download/v1.2.0/GHDownloader-Windows-V1.2.0-Setup.exe) | 安装版，自动创建桌面/开始菜单快捷方式，支持从「已安装的应用」卸载 |
+| [GHDownloader-Windows-V1.2.0.zip](https://github.com/netuser2011/gh-release-helper/releases/download/v1.2.0/GHDownloader-Windows-V1.2.0.zip) | 便携版，解压后直接运行 `GH Downloader.exe`，无需安装 |
+
+命令行下载：
+
+```bash
+# 安装版
+wget "https://github.com/netuser2011/gh-release-helper/releases/download/v1.2.0/GHDownloader-Windows-V1.2.0-Setup.exe"
+
+# 便携版
+wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/releases/download/v1.2.0/GHDownloader-Windows-V1.2.0.zip"
+```
+
+> 便携版解压后，`GH Downloader.exe` 与 `_internal/` 文件夹需保持在同一目录，不要单独移动 exe。
+
+### 方式二：从源码运行（开发者 / 非 Windows）
 
 ```bash
 git clone https://github.com/netuser2011/gh-release-helper
@@ -56,9 +81,15 @@ cd gh-release-helper
 pip install -r requirements.txt
 ```
 
+需要 Python 3.10+，依赖 `requests` / `httpx` / `rich` / `truststore`，见 `requirements.txt`。
+
 ## 使用
 
-### 方式一：双击 `Run.bat`
+### 安装版 / 便携版
+
+双击 `GH Downloader.exe`（或快捷方式）即可进入交互菜单，与源码运行体验完全一致。无需安装 Python。
+
+### 从源码运行
 
 不想碰命令行的话，直接双击 `Run.bat` 即可进入菜单。它会先找到本机 Python（优先 `py -3`，其次 `python`），
 发现缺 `requests` 时按 `requirements.txt` 自动装一次，之后任何报错都留在窗口里等你按键。
@@ -105,14 +136,14 @@ python main.py files                   # 只知道名字，先搜索
 
 ## 系统证书与代理工具（自动处理）
 
-如果本机开着 Watt Toolkit / SteamTools 之类的代理工具，它们会给 HTTPS 做中间人并把自签根证书装进 Windows 系统证书存储。`requests` 默认只认自带的 certifi，不认这张证书，就会报 `SSL 证书校验失败`。程序在每次启动时自动处理这件事：
+如果本机开着 Watt Toolkit / SteamTools 之类的代理工具，它们会给 HTTPS 做中间人并把自签根证书装进 Windows 系统证书存储。默认只认 certifi 的 HTTP 库会因此报 `SSL 证书校验失败`。程序在每次启动时自动处理这件事：
 
-- 读取 certifi 自带 CA + 当前电脑的 Windows 系统证书，合并去重后写到 `~/.gh-release-helper/ca-bundle.pem`；
-- 设置 `REQUESTS_CA_BUNDLE` 指向它，让 requests 信任浏览器也信任的证书；
-- 主菜单状态行显示「证书 已信任系统证书 N 张」，一眼能看到是否生效；
-- 若你已手动设置 `REQUESTS_CA_BUNDLE`，则不覆盖你的配置；导出失败时静默跳过，不影响程序使用。
+- 通过 `truststore.inject_into_ssl()` 让 `requests` / `httpx` 直接信任**操作系统证书存储**（Windows / macOS / Linux），浏览器信任的站点本工具也信任；
+- 不再导出或合并 PEM，也不再写 `~/.gh-release-helper/ca-bundle.pem`；
+- 主菜单状态行显示「证书 已信任系统证书（truststore）」，一眼能看到是否生效；
+- 若你已手动设置 `REQUESTS_CA_BUNDLE`，则不覆盖你的配置；注入失败时静默跳过，不影响程序使用。
 
-这不需要额外安装任何库（只用标准库 `ssl`），也不需要你手动导出证书或退出代理。注意：它信任的是**这台电脑系统里已受信任**的证书，安全性与浏览器一致；bundle 每次启动刷新，代理工具更新证书后会自动同步。
+不需要你手动导出证书或退出代理。注意：它信任的是**这台电脑系统里已受信任**的证书，安全性与浏览器一致；系统证书更新后自动生效，无需刷新 bundle。
 
 ## 配置 GitHub Token（可选，用于解除限流）
 
@@ -160,14 +191,15 @@ python main.py files                   # 只知道名字，先搜索
 
 ```
 gh-release-helper/
-├── main.py           # 交互菜单入口、搜索/收藏流程、无资产时网页跳转
+├── main.py           # 交互菜单入口、搜索/收藏/检查更新流程、无资产时网页跳转
 ├── cli.py            # 命令行模式：只打印下载链接
+├── pager.py          # 全屏翻页查看 Release 更新说明（rich Markdown，↑/↓ 滚动、Q 返回）
 ├── github_api.py     # GitHub REST API 封装、Token 解析、统一异常
-├── downloader.py     # 多线程分段 + 断点续传、线路测速、目录选择、文件名净化、浏览器唤起
+├── downloader.py     # httpx + asyncio 并发分段 + 断点续传、线路测速、目录选择、文件名净化、浏览器唤起
 ├── favorites.py      # favorites.json 读写与去重
-├── syscert.py        # 自动信任系统证书，解决代理工具导致的 SSL 错误（纯标准库）
-├── ui.py             # ANSI 颜色、表格、UTF-8 输出、崩溃日志（纯标准库）
-├── bootstrap.py      # 启动前置检查：Python 版本、requests 依赖、系统证书（纯标准库）
+├── syscert.py        # truststore 信任系统证书，解决代理工具导致的 SSL 错误
+├── ui.py             # rich 表格/横幅/进度条、ANSI 颜色、UTF-8 输出、崩溃日志
+├── bootstrap.py      # 启动前置检查：Python 版本、requests 依赖、系统证书
 ├── Run.bat           # 双击启动：探测 Python、缺依赖自动装、出错停窗（纯 ASCII）
 ├── requirements.txt
 ├── .gitignore        # 忽略 favorites.json / config.json / crash.log / .github_token
@@ -183,9 +215,12 @@ gh-release-helper/
 │   ├── test_core.py
 │   ├── test_error_visible.py
 │   ├── test_mirrors_threads.py
-│   └── test_syscert.py
+│   ├── test_syscert.py
+│   ├── test_pager.py
+│   ├── test_check_updates.py
+│   └── test_release_notes.py
 └── .github/
-    ├── workflows/ci.yml              # 3.8/3.10/3.12/3.13 跑测试 + Windows 冒烟
+    ├── workflows/ci.yml              # 3.10/3.11/3.12/3.13 跑测试 + Windows 冒烟
     ├── PULL_REQUEST_TEMPLATE.md
     └── ISSUE_TEMPLATE/               # 问题反馈 / 功能建议 两个模板
 ```
@@ -196,7 +231,7 @@ gh-release-helper/
 
 ```bash
 python -m pip install -r requirements.txt
-python -m unittest discover -s tests        # 170+ 用例，约 3 秒，全程离线
+python -m unittest discover -s tests        # 214 个用例，约 4 秒，全程离线
 ```
 
 测试不会打 GitHub API（网络用假响应），也不会读写你的 `favorites.json`（落盘指向临时目录）。
@@ -206,7 +241,7 @@ python -m unittest discover -s tests        # 170+ 用例，约 3 秒，全程�
 ## 常见问题
 
 **Q：报 `SSL 证书校验失败`？**
-本机有代理工具（Watt Toolkit / SteamTools、Charles、Fiddler、企业网关等）对 HTTPS 做中间人。程序启动时会**自动**把系统证书合并进 requests 的信任库，正常情况下开着代理也能用，主菜单「证书」一行会显示已信任多少张。若仍报错：确认代理工具的根证书已装进系统（而不是只装在浏览器里），或手动设置 `REQUESTS_CA_BUNDLE` 指向它的 `.pem` 文件。关掉代理工具通常也能立刻恢复。
+本机有代理工具（Watt Toolkit / SteamTools、Charles、Fiddler、企业网关等）对 HTTPS 做中间人。程序启动时通过 `truststore` 让 HTTP 库**自动信任系统证书存储**，正常情况下开着代理也能用，主菜单「证书」一行会显示状态。若仍报错：确认代理工具的根证书已装进系统（而不是只装在浏览器里），或手动设置 `REQUESTS_CA_BUNDLE` 指向它的 `.pem` 文件。关掉代理工具通常也能立刻恢复。
 
 **Q：`该 release 没有任何资产文件`？**
 不是 bug。有些项目（例如 VS Code）只发布 tag，安装包放在自己官网；也有项目把资产挂在别的 release 上。程序此时会列出 Release 发布页、GitHub 主页和作者官网供你跳转。也可以试试 `python cli.py owner/repo --no-latest` 看历史 release。
@@ -229,8 +264,11 @@ Windows 7/8 的旧控制台不支持 ANSI。Windows 10 1511+ 会自动启用虚�
 **Q：下载一半网络断了怎么办？**
 程序支持断点续传：中断时会保留 `.part` 和进度记录，下次重跑同一个下载只补未完成的段（分段下载）或从断点接着下（单流）。只有链接失效、返回网页、字节数不符这类永久性失败才会清掉临时文件。同名文件也不会覆盖，会自动加 `(1)` 后缀。
 
-**Q：能不能不装 requests？**
-不能。搜索、Release 与下载都依赖它，这也是项目唯一的第三方库，`pip install -r requirements.txt` 一句就好。
+**Q：能不能不装第三方库？**
+不能。项目依赖 `requests`（GitHub API）、`httpx`（下载与测速）、`rich`（终端界面与 Markdown）、`truststore`（系统证书）四个库，`pip install -r requirements.txt` 一句装齐。
+
+**Q：更新说明怎么看？**
+搜索结果里输入 `d` + 编号（如 `d3`）即可全屏查看该仓库最新 Release 的更新说明：rich Markdown 排版，↑/↓ 滚动，Q 返回列表，不跳浏览器。菜单按 `5` 则可批量检查所有收藏仓库的版本变化。
 
 **Q：双击 `main.py` 就闪退，什么报错都看不到？**
 先别双击 `.py`：文件关联可能被 IDE 接管（我机器上就指向了 PyCharm），而且窗口关闭时错误信息会一起消失。三种正确打开方式：

@@ -135,7 +135,7 @@ git push -u origin main
 
 推送后到 **Actions** 页面看两条 job：
 
-- `离线单元测试 · Python 3.8 / 3.10 / 3.12 / 3.13`
+- `离线单元测试 · Python 3.10 / 3.11 / 3.12 / 3.13`
 - `Windows 控制台冒烟 · 报错不闪退`
 
 全绿才算发布完成。第二条里有一条专门的检查：不设 `PYTHONUTF8` / `PYTHONIOENCODING`，
