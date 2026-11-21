@@ -1,6 +1,6 @@
 # GitHub Release 交互式下载助手
 
-一个跑在终端里的 GitHub Release 下载工具：不知道作者是谁也能用——只输入仓库名就能搜出候选仓库，按编号选择，收藏常用项目，然后把 Release 资产下载到本地。支持多线程分段与断点续传、多线路测速择优，也能自动信任系统证书，开着代理工具照样用。
+一个跑在终端里的 GitHub Release 下载工具：不知道作者是谁也能用——只输入仓库名就能搜出候选仓库，按编号选择，收藏常用项目，然后把 Release 资产下载到本地。支持多线程分段与断点续传、多线路测速择优、Markdown 排版的更新说明，也能自动信任系统证书，开着代理工具照样用。
 
 全部走 GitHub 官方 REST API，不解析网页 HTML。
 
@@ -25,20 +25,21 @@
 
 ## 功能特性
 
-- **不知道作者也能找**：只输入仓库名关键词，按星标排序列出候选（作者/名字、星标、语言、简介），输入编号即可。
+- **不知道作者也能找**：只输入仓库名关键词，按星标排序列出候选（作者/名字、星标、语言、更新说明入口）。输入 `d` + 编号（如 `d3`）可全屏查看该仓库最新 Release 的更新说明：Markdown 排版、上下键滚动、Q 返回列表，不跳浏览器。
 - **收藏夹持久化**：以 `作者名/仓库名` 为键写入 `favorites.json`，附带星标、简介与上次看到的资产清单，重启后仍在。
+- **批量检查更新**：菜单按 `5`，一次遍历全部收藏仓库的最新 Release，表格对比上次 tag 与最新版本，展示更新摘要；内置限流保护（无 Token 限制 40 个、403/429 自动停止）。
 - **三种下载方式，各做一件事**：终端多线程下载到本地、唤起系统默认浏览器、只打印下载链接。选本地下载时带实时进度条（百分比 / 速度 / 剩余时间）。
-- **多线程分段**：文件 ≥ 2 MB 且服务器支持 `Range` 时自动切成多段并发下载（默认 4 线程，`GHR_THREADS` 可调 1-8），完成后按总字节数核对。
+- **并发分段**：文件 ≥ 2 MB 且服务器支持 `Range` 时自动切成多段，用 asyncio 并发下载（默认 4 路，`GHR_THREADS` 可调 1-8），完成后按总字节数核对。
 - **断点续传**：网络中断或按 Ctrl+C 会保留 `.part` 和进度记录，下次重跑只补未完成的段；文件变化（ETag / 长度不符）则自动从头下载，不会串味。
 - **多线路测速择优**：内置 1 条直连 + 6 个公共镜像的 HTTPS 白名单，选「自动测速」时并发探测各线路吞吐，挑最快的一条；全都不通时逐条列出原因。镜像不接受临时输入，防止文件被第三方替换。
 - **按类型筛选**：先问你要 ZIP 还是 EXE（也支持 MSI、DMG、DEB 等实际存在的类型与「全部」）。
 - **没资产也有出路**：某个 Release 没上传资产时，会列出 Release 发布页、GitHub 主页与作者官网供跳转；搜索选中仓库后也能先去网页看看再决定要不要下载。
-- **代理工具免折腾**：启动时自动把 Windows 系统证书（含 Watt Toolkit / SteamTools 等代理工具装的根证书）与 certifi 合并，写入用户目录并通过 `REQUESTS_CA_BUNDLE` 交给 requests——开着代理也不再报 SSL 错误，无需手动导出证书或退出代理。已设置该环境变量时不覆盖，导出失败则静默降级。
+- **代理工具免折腾**：启动时通过 `truststore` 直接信任操作系统证书存储（含 Watt Toolkit / SteamTools 等代理工具装的根证书），无需手动导出 PEM 或退出代理。已设置 `REQUESTS_CA_BUNDLE` 时不覆盖，注入失败则静默降级。
 - **下载目录可选**：每次下载前可以选默认目录、仅本次换目录、换目录并永久记住，也可以一键恢复系统默认下载目录。
 - **只复制链接**：也可以只打印下载链接，粘进浏览器或你惯用的任何下载工具都行。
 - **一键解除限流**：菜单按 `0` 就跳到 GitHub 的 Token 创建页（链接已带 `public_repo` 权限参数），
   粘贴回来只写本地 `.github_token`；Token 不进源码、不进日志，保存后也不会再打印一遍。
-- **终端友好**：自适应列宽的表格（中英文、emoji 混排不错位），ANSI 颜色，`NO_COLOR` 或管道输出时自动降级为纯文本。
+- **终端友好**：rich 渲染的自适应列宽表格、横幅与进度条（中英文、emoji 混排不错位），ANSI 颜色，`NO_COLOR` 或管道输出时自动降级为纯文本。
 - **异常明确**：网络不通、超时、SSL 被代理拦截、仓库不存在、没有 release、API 限流，分别给出可读提示而不是裸 traceback。
 - **报错不会消失**：早期失败（Python 版本 / 缺依赖）写 `crash.log` 并等你按键；菜单里的错误会留在重画后的菜单顶部；未预料的崩溃打印完整 traceback 后落盘。
 - **上手无门槛**：所有仓库名、作者名、文件类型、保存位置都在终端里选编号或输入，不需要记任何命令行参数。
@@ -46,7 +47,7 @@
 ## 环境要求
 
 - **安装版 / 便携版**：无需安装 Python，直接运行即可
-- **从源码运行**：Python 3.8 及以上（推荐 3.10+），一个第三方依赖 `requests`；其余全部是标准库，不依赖 rich / colorama / tqdm，也不用任何 GUI 框架（系统证书信任只用标准库 `ssl`，不需额外安装 truststore）
+- **从源码运行**：Python 3.8 及以上（推荐 3.10+），依赖 `requests` / `httpx` / `rich` / `truststore`，不用任何 GUI 框架
 
 ## 安装
 
@@ -56,17 +57,17 @@
 
 | 文件 | 说明 |
 | --- | --- |
-| [GHDownloader-Windows-V1.1.1-Setup.exe](https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1-Setup.exe) | 安装版，自动创建桌面/开始菜单快捷方式，支持从「已安装的应用」卸载 |
-| [GHDownloader-Windows-V1.1.1.zip](https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1.zip) | 便携版，解压后直接运行 `GH Downloader.exe`，无需安装 |
+| [GHDownloader-Windows-V1.2.0-Setup.exe](https://github.com/netuser2011/gh-release-helper/releases/download/v1.2.0/GHDownloader-Windows-V1.2.0-Setup.exe) | 安装版，自动创建桌面/开始菜单快捷方式，支持从「已安装的应用」卸载 |
+| [GHDownloader-Windows-V1.2.0.zip](https://github.com/netuser2011/gh-release-helper/releases/download/v1.2.0/GHDownloader-Windows-V1.2.0.zip) | 便携版，解压后直接运行 `GH Downloader.exe`，无需安装 |
 
 命令行下载：
 
 ```bash
 # 安装版
-wget "https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1-Setup.exe"
+wget "https://github.com/netuser2011/gh-release-helper/releases/download/v1.2.0/GHDownloader-Windows-V1.2.0-Setup.exe"
 
 # 便携版
-wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1.zip"
+wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/releases/download/v1.2.0/GHDownloader-Windows-V1.2.0.zip"
 ```
 
 > 便携版解压后，`GH Downloader.exe` 与 `_internal/` 文件夹需保持在同一目录，不要单独移动 exe。
@@ -79,7 +80,7 @@ cd gh-release-helper
 pip install -r requirements.txt
 ```
 
-需要 Python 3.8+（推荐 3.10+），唯一第三方依赖是 `requests`。
+需要 Python 3.8+（推荐 3.10+），依赖 `requests` / `httpx` / `rich` / `truststore`，见 `requirements.txt`。
 
 ## 使用
 
