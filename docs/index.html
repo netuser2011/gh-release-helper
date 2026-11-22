@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GH Release Helper — 只知道仓库名，也能一键下载 GitHub Release</title>
-<meta name="description" content="一个跑在终端里的 GitHub Release 下载助手：只输入仓库名就能搜索定位，支持多线程直接下载、浏览器下载与复制链接，下载路径随时可改。MIT 开源。">
+<title>GH Downloader v1.3.0 — 全屏 TUI 里搜索、筛选并一键下载 GitHub Release</title>
+<meta name="description" content="跑在终端里的 GitHub Release 下载助手：全屏 TUI 交互、按后缀分组筛选资产、多线路测速与并发分段下载，下载完自动运行安装包或解压。提供 Windows 安装版与便携版，MIT 开源。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -395,45 +395,47 @@
 <header class="hero" id="top">
   <div class="container hero-grid">
     <div>
-      <div class="badge-new reveal"><span>v1.1.1</span> Windows 安装版 · 免 Python · MIT 开源</div>
+      <div class="badge-new reveal"><span>v1.3.0</span> 全屏 TUI · 类型筛选 · 下载后处理 · MIT 开源</div>
       <h1 class="reveal" data-d="1">
         <span class="line">只知道仓库名，</span>
         <span class="line">也能<span class="grad-text">一键下载</span></span>
         <span class="line">GitHub Release。</span>
       </h1>
-      <p class="hero-lead reveal" data-d="2">一个跑在<strong>终端里</strong>的 GitHub 下载助手。不用先查作者，输入名字就能搜；多线程高速下载，三种方式随你挑，保存路径随时能改。</p>
+      <p class="hero-lead reveal" data-d="2">一个跑在<strong>终端里</strong>的 GitHub 下载助手。全屏 TUI 点选操作，按后缀分组筛选资产，多线路测速后并发下载，下完自动运行安装包或解压。</p>
       <div class="hero-btns reveal" data-d="3">
-        <a class="btn btn-cta btn-lg" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1-Setup.exe" download><svg class="icon"><use href="#i-download"/></svg>下载 Windows 安装版<svg class="icon"><use href="#i-arrow"/></svg></a>
-        <a class="btn btn-ghost btn-lg" href="#quickstart"><svg class="icon"><use href="#i-github"/></svg>其他方式</a>
+        <a class="btn btn-cta btn-lg" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.0/GHDownloader-Windows-V1.3.0-Setup.exe" download><svg class="icon"><use href="#i-download"/></svg>下载 Windows 安装版<svg class="icon"><use href="#i-arrow"/></svg></a>
+        <a class="btn btn-ghost btn-lg" href="https://github.com/netuser2011/gh-release-helper" target="_blank" rel="noopener"><svg class="icon"><use href="#i-github"/></svg>在 GitHub 上查看</a>
       </div>
       <ul class="hero-meta reveal" data-d="3">
-        <li><svg class="icon"><use href="#i-check-circle"/></svg>安装版双击即用，无需 Python</li>
-        <li><svg class="icon"><use href="#i-check-circle"/></svg>多线程下载 · 断点续传</li>
-        <li><svg class="icon"><use href="#i-check-circle"/></svg>唯一依赖 requests（源码版）</li>
+        <li><svg class="icon"><use href="#i-check-circle"/></svg>Windows 安装版免 Python</li>
+        <li><svg class="icon"><use href="#i-check-circle"/></svg>全屏 TUI，鼠标键盘都能操作</li>
+        <li><svg class="icon"><use href="#i-check-circle"/></svg>并发分段 · 自动测速 · 断点续传</li>
       </ul>
     </div>
     <div class="reveal" data-d="2" style="position:relative">
       <div class="terminal">
         <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="term-title">gh-release-helper — terminal</span></div>
         <div class="term-body">
-<div class="term-line term-box">╭──────────────────────────────────────╮</div>
+<div class="term-line term-box">┌──────────────────────────────────────┐</div>
 <div class="term-line term-box">│ <span class="term-head">GitHub Release 交互式下载助手</span>         │</div>
 <div class="term-line term-box">│ 搜索 · 收藏 · 一键下载                  │</div>
-<div class="term-line term-box">╰──────────────────────────────────────╯</div>
-<div class="term-line term-dim">  收藏夹 3 个 · Token 已配置 · 下载目录 D:\Downloads</div>
+<div class="term-line term-box">└──────────────────────────────────────┘</div>
+<div class="term-line term-dim">  收藏 3 个   Token 已配置   证书 已信任系统证书</div>
 <div class="term-line"> </div>
-<div class="term-line"><span class="term-num"> 1</span>  <span class="term-key">搜索仓库</span>  — 按名字找项目，选编号看 Release</div>
-<div class="term-line"><span class="term-num"> 2</span>  <span class="term-key">查看收藏</span>  — 调出已存仓库的下载链接</div>
-<div class="term-line"><span class="term-num"> 3</span>  <span class="term-key">添加收藏</span>  — 把常用仓库存进 favorites.json</div>
-<div class="term-line"><span class="term-num"> 4</span>  <span class="term-key">退出</span>      — 保存收藏并退出</div>
-<div class="term-line"><span class="term-num"> 0</span>  <span class="term-key">配置 Token</span> — 解除 API 限流</div>
+<div class="term-line term-dim">  ← 返回上一级</div>
+<div class="term-line"><span class="term-num"> 1.</span> <span class="term-key">搜索仓库</span>  — 按名字找项目，选一个看 Release 资产</div>
+<div class="term-line"><span class="term-num"> 2.</span> <span class="term-key">查看收藏</span>  — 调出已存仓库的下载链接</div>
+<div class="term-line"><span class="term-num"> 3.</span> <span class="term-key">添加收藏</span>  — 把常用仓库存进收藏夹</div>
+<div class="term-line"><span class="term-num"> 4.</span> <span class="term-key">检查更新</span>  — 检查本程序 + 批量检查收藏</div>
+<div class="term-line"><span class="term-num"> 5.</span> <span class="term-key">配置 Token</span> — 解除限流</div>
+<div class="term-line"><span class="term-num"> 0.</span> <span class="term-key">退出</span>      — 保存收藏并退出</div>
 <div class="term-line"> </div>
-<div class="term-line term-dim">请选择 <span class="term-ok">[1/2/3/4/0]</span>: <span class="term-cursor"></span></div>
+<div class="term-line term-ok">  ✓ Concurrent  ·  ↑/↓ 选择，回车进入，ESC 返回</div>
         </div>
       </div>
       <div class="term-float">
         <span class="fi"><svg class="icon"><use href="#i-zap"/></svg></span>
-        <span><b>多线程下载</b><small>进度 · 速度 · 剩余时间</small></span>
+        <span><b>8 路并发分段</b><small>测速择优 · 实时进度 · 自动处理</small></span>
       </div>
     </div>
   </div>
@@ -443,9 +445,9 @@
 <div class="stats-band">
   <div class="container stats-grid">
     <div class="stat"><b>100%</b><span>GitHub 官方 REST API</span></div>
+    <div class="stat"><b>8 路</b><span>并发分段，默认 512 KB 起</span></div>
+    <div class="stat"><b>7 条</b><span>线路并发测速择优</span></div>
     <div class="stat"><b>3 种</b><span>下载方式自由选</span></div>
-    <div class="stat"><b>5000</b><span>次/小时 · 配置 Token 后</span></div>
-    <div class="stat"><b>0 个</b><span>命令行参数要记</span></div>
   </div>
 </div>
 
@@ -455,7 +457,7 @@
     <div class="center">
       <span class="eyebrow reveal">为什么需要它</span>
       <h2 class="section-title reveal" data-d="1">下载一个安装包，<span class="grad-text">不该这么麻烦</span></h2>
-      <p class="section-sub reveal" data-d="2">从搜索到落盘，中间每一步都在消耗你的时间。这个工具把整件事收进一个终端窗口。</p>
+      <p class="section-sub reveal" data-d="2">从搜索到运行，中间每一步都在消耗你的时间。这个工具把整件事收进一个全屏终端界面。</p>
     </div>
     <div class="problem-grid">
       <div class="problem-card reveal">
@@ -466,12 +468,12 @@
       <div class="problem-card reveal" data-d="1">
         <span class="p-icon"><svg class="icon"><use href="#i-layers"/></svg></span>
         <h3>Release 页面手动翻找</h3>
-        <p>资产列表一长串，还得自己分辨 ZIP、EXE、MSI、DMG。工具按扩展名筛好，最近的版本一次列全。</p>
+        <p>资产列表一长串，还得自己分辨 ZIP、EXE、MSI、DMG。工具按后缀分组，先选类型再选文件，几十个链接也不乱。</p>
       </div>
       <div class="problem-card reveal" data-d="2">
         <span class="p-icon"><svg class="icon"><use href="#i-clock"/></svg></span>
         <h3>下载到一半断流重来</h3>
-        <p>浏览器下载不好管理，命令行参数又记不住。流式下载带实时进度，中断自动清理残文件，全程只按数字。</p>
+        <p>浏览器下载不好管理，命令行参数又记不住。多线路测速 + 并发分段带实时进度，中断保留进度下次接着下。</p>
       </div>
     </div>
     <p class="solve-note reveal">现在，<b>搜索 → 选择 → 下载</b> 三步完成，收藏夹还会记住你常用的仓库。</p>
@@ -487,12 +489,12 @@
       <p class="section-sub reveal" data-d="2">不堆砌功能，每一个都对应一个真实的下载痛点。</p>
     </div>
     <div class="features-grid">
-      <div class="feature reveal"><span class="f-icon"><svg class="icon"><use href="#i-search"/></svg></span><h3>按名字搜索，无需作者</h3><p>GitHub Search API 按星标排序返回候选仓库，展示作者、语言、星标与简介，输编号就能进 Release 资产页。</p></div>
-      <div class="feature reveal" data-d="1"><span class="f-icon"><svg class="icon"><use href="#i-bookmark"/></svg></span><h3>收藏夹持久化</h3><p>常用的「作者/仓库」存进 favorites.json，记下简介、星标与资产清单，重启后依然在，大小写不同也不重复。</p></div>
-      <div class="feature reveal" data-d="2"><span class="f-icon"><svg class="icon"><use href="#i-zap"/></svg></span><h3>多线程高速下载</h3><p>流式落盘配合实时进度条，显示百分比、速度与剩余时间；先写 .part 校验后再改名，不留半截文件。</p></div>
-      <div class="feature reveal"><span class="f-icon"><svg class="icon"><use href="#i-filter"/></svg></span><h3>按类型智能筛选</h3><p>先问 ZIP 还是 EXE，MSI、DMG、DEB、AppImage 等按资产里实际出现的类型动态列出，最后一项永远是「全部」。</p></div>
-      <div class="feature reveal" data-d="1"><span class="f-icon"><svg class="icon"><use href="#i-key"/></svg></span><h3>一键解除 API 限流</h3><p>菜单按 0 直达 GitHub 官方 Token 创建页，粘贴回来只写本地 .github_token，限额从 60 次/小时提升到 5000 次。</p></div>
-      <div class="feature reveal" data-d="2"><span class="f-icon"><svg class="icon"><use href="#i-shield"/></svg></span><h3>终端友好，报错清晰</h3><p>表格自适应列宽，中英文不错位；限流、超时、代理 SSL、仓库不存在都给可读提示，异常写入 crash.log 不再一闪而过。</p></div>
+      <div class="feature reveal"><span class="f-icon"><svg class="icon"><use href="#i-search"/></svg></span><h3>全屏 TUI，点选即可</h3><p>搜索、仓库、资产、下载、收藏全部是可点击/方向键操作的全屏页面，顶部状态行、底部键位提示，网络请求放后台不卡界面。</p></div>
+      <div class="feature reveal" data-d="1"><span class="f-icon"><svg class="icon"><use href="#i-filter"/></svg></span><h3>按后缀分组筛选</h3><p>Release 资产先按 ZIP / EXE / TAR / APK / MAS / KMASIX 等后缀分组，目录里只列类型与文件数，选一种再列具体文件。</p></div>
+      <div class="feature reveal" data-d="2"><span class="f-icon"><svg class="icon"><use href="#i-zap"/></svg></span><h3>测速择优 + 并发分段</h3><p>7 条线路并发测速（排除首字节延迟），默认 8 路并发下载、512 KB 起分段；中断保留进度，被限制时自动回退单流。</p></div>
+      <div class="feature reveal"><span class="f-icon"><svg class="icon"><use href="#i-package"/></svg></span><h3>下载完自动处理</h3><p>安装包（exe/msi）下完弹窗问是否直接运行，zip 自动解压并询问是否删包，不用再去文件夹里找。</p></div>
+      <div class="feature reveal" data-d="1"><span class="f-icon"><svg class="icon"><use href="#i-bookmark"/></svg></span><h3>收藏可加可删</h3><p>常用的「作者/仓库」存进收藏夹，二次确认即可删除，列表与计数同步更新；重启后依然在，大小写不同也不重复。</p></div>
+      <div class="feature reveal" data-d="2"><span class="f-icon"><svg class="icon"><use href="#i-link"/></svg></span><h3>链接可框选可复制</h3><p>「只打印下载链接」打开独立页面，输入框可框选复制，也有一键复制按钮与明确反馈，不再被弹窗挡住。</p></div>
     </div>
   </div>
 </section>
@@ -503,20 +505,20 @@
     <div class="center">
       <span class="eyebrow reveal">三种下载方式</span>
       <h2 class="section-title reveal" data-d="1">同一个文件，<span class="grad-text">三种拿法</span></h2>
-      <p class="section-sub reveal" data-d="2">选完资产后按习惯来：直接下到本地、交给浏览器，或者只拿链接。</p>
+      <p class="section-sub reveal" data-d="2">选完资产后点一个按钮即可：直接下到本地、交给浏览器，或者打开可复制的链接页。不用再输 1/2/3。</p>
     </div>
     <div class="methods-grid">
       <div class="method reveal">
         <div class="method-top"><span class="method-no">01</span><span class="method-icon"><svg class="icon icon-lg"><use href="#i-download"/></svg></span><h3>直接下载</h3></div>
         <div class="method-body">
-          <p>用 requests 把文件流式写到本地磁盘，程序内完成整个下载过程。</p>
+          <p>7 线路并发测速择优，默认 8 路分段流式落盘，程序内完成整个下载过程。</p>
           <ul>
-            <li><svg class="icon"><use href="#i-check"/></svg><span>实时进度条：百分比、速度、剩余时间</span></li>
-            <li><svg class="icon"><use href="#i-check"/></svg><span>.part 临时文件校验通过后才改名</span></li>
-            <li><svg class="icon"><use href="#i-check"/></svg><span>同名自动加 (1)、(2)，不覆盖旧文件</span></li>
+            <li><svg class="icon"><use href="#i-check"/></svg><span>线路评分 + 进度条 + 实时速度</span></li>
+            <li><svg class="icon"><use href="#i-check"/></svg><span>下完自动运行安装包 / 解压 zip</span></li>
+            <li><svg class="icon"><use href="#i-check"/></svg><span>.part 断点续传，同名自动加 (1)、(2)</span></li>
           </ul>
         </div>
-        <div class="method-code">选中资产 → <b>直接下载</b> → 选目录</div>
+        <div class="method-code">选中资产 → <b>在终端下载到本地</b></div>
       </div>
       <div class="method reveal" data-d="1">
         <div class="method-top"><span class="method-no">02</span><span class="method-icon"><svg class="icon icon-lg"><use href="#i-globe"/></svg></span><h3>浏览器下载</h3></div>
@@ -528,19 +530,19 @@
             <li><svg class="icon"><use href="#i-check"/></svg><span>也可以只开浏览器、不在本地落盘</span></li>
           </ul>
         </div>
-        <div class="method-code">选中资产 → <b>浏览器下载</b></div>
+        <div class="method-code">选中资产 → <b>用系统浏览器下载</b></div>
       </div>
       <div class="method reveal" data-d="2">
         <div class="method-top"><span class="method-no">03</span><span class="method-icon"><svg class="icon icon-lg"><use href="#i-link"/></svg></span><h3>复制链接下载</h3></div>
         <div class="method-body">
-          <p>不发起下载，只把资产链接打印出来，粘到任何你惯用的下载工具里。</p>
+          <p>打开独立链接页，输入框可框选复制，点按钮一键存入剪贴板，粘到任何下载工具里。</p>
           <ul>
-            <li><svg class="icon"><use href="#i-check"/></svg><span>命令行模式一条语句列出全部链接</span></li>
-            <li><svg class="icon"><use href="#i-check"/></svg><span>支持按扩展名筛选、查看历史 Release</span></li>
+            <li><svg class="icon"><use href="#i-check"/></svg><span>完整 URL 可框选，也能一键复制</span></li>
+            <li><svg class="icon"><use href="#i-check"/></svg><span>命令行模式仍可批量列出链接</span></li>
             <li><svg class="icon"><use href="#i-check"/></svg><span>适合 Aria2、IDM 或远程协作排障</span></li>
           </ul>
         </div>
-        <div class="method-code">python cli.py <b>owner/repo</b></div>
+        <div class="method-code">选中资产 → <b>只打印下载链接</b></div>
       </div>
     </div>
   </div>
@@ -594,7 +596,7 @@ export GHR_DOWNLOAD_DIR=~/Downloads
       <div class="usecase reveal"><span class="u-icon"><svg class="icon"><use href="#i-package"/></svg></span><h3>快速拿安装包</h3><p>装软件时只需记住项目名，搜索、筛选、下载一气呵成，不用打开网页翻 Release。</p></div>
       <div class="usecase reveal" data-d="1"><span class="u-icon"><svg class="icon"><use href="#i-bookmark"/></svg></span><h3>管理常用项目</h3><p>把天天要更新的工具存进收藏夹，下次打开直接调出资产清单，版本更新一眼看到。</p></div>
       <div class="usecase reveal" data-d="2"><span class="u-icon"><svg class="icon"><use href="#i-link"/></svg></span><h3>交给专业下载工具</h3><p>网络环境受限时用命令行只取链接，粘到 Aria2 或其他下载器里继续，灵活不受限。</p></div>
-      <div class="usecase reveal" data-d="3"><span class="u-icon"><svg class="icon"><use href="#i-users"/></svg></span><h3>分享给不懂命令行的人</h3><p>下载安装版双击装好，桌面快捷方式点开即用。全程无需 Python，无需命令行。</p></div>
+      <div class="usecase reveal" data-d="3"><span class="u-icon"><svg class="icon"><use href="#i-users"/></svg></span><h3>分享给不懂命令行的人</h3><p>直接发 Windows 安装版，双击安装、桌面快捷方式，全程点按钮就行，对方不用装 Python。</p></div>
     </div>
   </div>
 </section>
@@ -604,31 +606,32 @@ export GHR_DOWNLOAD_DIR=~/Downloads
   <div class="container">
     <div class="center">
       <span class="eyebrow reveal">快速开始</span>
-      <h2 class="section-title reveal" data-d="1">两分钟用起来</h2>
-      <p class="section-sub reveal" data-d="2">安装版无需 Python，下载双击就完。便携版解压即跑。源码版给开发者。</p>
+      <h2 class="section-title reveal" data-d="1">两分钟跑起来</h2>
+      <p class="section-sub reveal" data-d="2">Windows 用户直接装安装包；源码运行需要 Python 3.10+。</p>
     </div>
     <div class="qs-grid">
       <div class="qs-card recommend reveal">
-        <span class="qs-tag"><svg class="icon icon-sm"><use href="#i-star"/></svg>推荐 · 安装版</span>
-        <h3>下载 Setup，双击安装</h3>
-        <p>无需 Python，无需命令行，装完桌面就有快捷方式。</p>
+        <span class="qs-tag"><svg class="icon icon-sm"><use href="#i-star"/></svg>新手推荐</span>
+        <h3>Windows 安装版</h3>
+        <p>双击安装，桌面与开始菜单自动建快捷方式，无需 Python。</p>
         <div class="qs-steps">
-          <div class="qs-step"><span class="n">1</span>下载 GHDownloader-Windows-V1.1.1-Setup.exe</div>
-          <div class="qs-step"><span class="n">2</span>双击运行安装向导，一路下一步</div>
-          <div class="qs-step"><span class="n">3</span>桌面出现快捷方式，点开即用</div>
+          <div class="qs-step"><span class="n">1</span>下载 GHDownloader-Windows-V1.3.0-Setup.exe</div>
+          <div class="qs-step"><span class="n">2</span>双击运行安装向导，按提示完成</div>
+          <div class="qs-step"><span class="n">3</span>从桌面快捷方式进入全屏 TUI</div>
         </div>
-        <div class="qs-cmd"><span>12.8 MB · Windows 10/11 · x64</span><a class="copy-btn" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1-Setup.exe" download aria-label="下载安装版"><svg class="icon"><use href="#i-download"/></svg></a></div>
+        <div class="qs-cmd"><span>GHDownloader-Windows-V1.3.0-Setup.exe</span><a class="copy-btn" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.0/GHDownloader-Windows-V1.3.0-Setup.exe" download aria-label="下载安装版"><svg class="icon"><use href="#i-download"/></svg></a></div>
       </div>
       <div class="qs-card reveal" data-d="1">
-        <span class="qs-tag"><svg class="icon icon-sm"><use href="#i-folder"/></svg>便携版 / 源码版</span>
-        <h3>其他获取方式</h3>
-        <p>不想装？解压 ZIP 直接跑。要改代码？从源码构建。</p>
+        <span class="qs-tag"><svg class="icon icon-sm"><use href="#i-terminal"/></svg>源码运行</span>
+        <h3>从终端启动</h3>
+        <p>想要更多控制？克隆仓库后直接运行 Python 脚本。</p>
         <div class="qs-steps">
-          <div class="qs-step"><span class="n">1</span>便携版：下载 ZIP，解压后双击 <b>GH Downloader.exe</b></div>
-          <div class="qs-step"><span class="n">2</span>命令行：<code>wget "https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1.zip"</code></div>
-          <div class="qs-step"><span class="n">3</span>源码：git clone → pip install -r requirements.txt → python main.py</div>
+          <div class="qs-step"><span class="n">1</span>克隆仓库并进入目录</div>
+          <div class="qs-step"><span class="n">2</span>pip 安装 requirements.txt 里的四个依赖</div>
+          <div class="qs-step"><span class="n">3</span>运行主程序，或一步直达指定仓库</div>
         </div>
-        <div class="qs-cmd"><span>便携版 13.2 MB · 无需 Python</span><a class="copy-btn" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1.zip" download aria-label="下载便携版"><svg class="icon"><use href="#i-download"/></svg></a></div>
+        <div class="qs-cmd"><span>pip install -r requirements.txt</span><button type="button" class="copy-btn" data-copy="pip install -r requirements.txt" aria-label="复制命令"><svg class="icon"><use href="#i-copy"/></svg></button></div>
+        <div class="qs-cmd"><span>python main.py</span><button type="button" class="copy-btn" data-copy="python main.py" aria-label="复制命令"><svg class="icon"><use href="#i-copy"/></svg></button></div>
       </div>
     </div>
   </div>
@@ -640,7 +643,7 @@ export GHR_DOWNLOAD_DIR=~/Downloads
     <h2 class="reveal">把时间花在创造上，<br>而不是找下载链接上。</h2>
     <p class="reveal" data-d="1">开源、免费、MIT 许可。欢迎 Star，也欢迎提交 Issue 和 PR 一起完善。</p>
     <div class="cta-btns reveal" data-d="2">
-      <a class="btn btn-white btn-lg" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1-Setup.exe" download><svg class="icon"><use href="#i-download"/></svg>下载 Windows 安装版</a>
+      <a class="btn btn-white btn-lg" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.0/GHDownloader-Windows-V1.3.0-Setup.exe" download><svg class="icon"><use href="#i-download"/></svg>下载 v1.3.0 安装版</a>
       <a class="btn btn-outline-light btn-lg" href="https://github.com/netuser2011/gh-release-helper" target="_blank" rel="noopener"><svg class="icon"><use href="#i-github"/></svg>访问 GitHub 仓库</a>
     </div>
   </div>
@@ -652,12 +655,12 @@ export GHR_DOWNLOAD_DIR=~/Downloads
     <div class="foot-grid">
       <div class="foot-brand">
         <a class="brand" href="#top"><span class="brand-mark"><svg class="icon"><use href="#i-terminal"/></svg></span><span>GH Release Helper<small>RELEASE DOWNLOADER</small></span></a>
-        <p>一个跑在终端里的 GitHub Release 下载助手。搜索、收藏、下载，全程编号操作，不依赖 GUI 框架。</p>
+        <p>一个跑在终端里的 GitHub Release 下载助手。全屏 TUI 点选、按类型筛选、测速并发下载、下完自动处理安装包，不依赖 GUI 框架。</p>
       </div>
       <div class="foot-col">
         <h4>项目</h4>
         <a href="https://github.com/netuser2011/gh-release-helper" target="_blank" rel="noopener">GitHub 仓库</a>
-        <a href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.1.1/GHDownloader-Windows-V1.1.1-Setup.exe" download>下载安装版</a>
+        <a href="https://github.com/netuser2011/gh-release-helper/releases/tag/v1.3.0" target="_blank" rel="noopener">下载与 Releases</a>
         <a href="https://github.com/netuser2011/gh-release-helper/blob/main/CHANGELOG.md" target="_blank" rel="noopener">更新日志</a>
       </div>
       <div class="foot-col">
