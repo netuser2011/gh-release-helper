@@ -16,8 +16,14 @@ rem  even though nothing failed. Chinese messages therefore live in the
 rem  Python program, not here.
 rem ---------------------------------------------------------------------
 
-rem --- locate a Python interpreter: check errorlevel at runtime, never %errorlevel% ---
+rem --- prefer the project virtual environment (Textual is installed there) ---
 set "PYCMD="
+if exist "%~dp0.venv\Scripts\python.exe" (
+    set "PYCMD=%~dp0.venv\Scripts\python.exe"
+    goto python_found
+)
+
+rem --- fall back to a system interpreter if no venv exists ---
 where py >nul 2>nul
 if errorlevel 1 goto find_python
 py -3 --version >nul 2>nul
@@ -41,10 +47,10 @@ if not defined PYCMD (
     exit /b 1
 )
 
-rem --- install the only third-party dependency on first run ---
-%PYCMD% -c "import requests" >nul 2>nul
+rem --- install third-party dependencies on first run (textual is the TUI core) ---
+%PYCMD% -c "import textual, requests, httpx, truststore" >nul 2>nul
 if errorlevel 1 (
-    echo First run: installing requests from requirements.txt ...
+    echo First run: installing dependencies from requirements.txt ...
     %PYCMD% -m pip install -r requirements.txt
     if errorlevel 1 (
         echo.

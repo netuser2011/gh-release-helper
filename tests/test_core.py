@@ -383,6 +383,9 @@ class DownloadTest(unittest.TestCase):
                 for c in chunks:
                     yield c
 
+            def iter_raw(self, chunk_size=1):
+                return self.iter_bytes(chunk_size)
+
             def __enter__(self):
                 return self
 
@@ -652,6 +655,12 @@ class ResumeTest(unittest.TestCase):
                 yield self._body
 
             async def aiter_bytes(self, chunk_size=1):
+                yield self._body
+
+            def iter_raw(self, chunk_size=1):
+                yield self._body
+
+            async def aiter_raw(self, chunk_size=1):
                 yield self._body
 
             def __enter__(self):

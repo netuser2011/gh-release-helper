@@ -44,6 +44,13 @@ class FakeResponse:
         for chunk in self.iter_bytes(chunk_size):
             yield chunk
 
+    def iter_raw(self, chunk_size=1):
+        return self.iter_bytes(chunk_size)
+
+    async def aiter_raw(self, chunk_size=1):
+        async for chunk in self.aiter_bytes(chunk_size):
+            yield chunk
+
     def __enter__(self):
         return self
 

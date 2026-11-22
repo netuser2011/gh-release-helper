@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import stat
+from collections.abc import Mapping
 from pathlib import Path
 
 import requests
@@ -91,7 +92,7 @@ def build_headers(token: str) -> dict:
     return headers
 
 
-def request_json(url: str, params: dict | None = None, token: str = "") -> tuple[object, dict]:
+def request_json(url: str, params: dict | None = None, token: str = "") -> tuple[object, Mapping[str, str]]:
     """请求 GitHub API 并返回 (JSON 数据, 响应头)；任何失败都转成带明确提示的异常。"""
     try:
         resp = requests.get(url, params=params or {}, headers=build_headers(token), timeout=REQUEST_TIMEOUT)

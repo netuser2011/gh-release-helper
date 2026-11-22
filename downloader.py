@@ -10,10 +10,9 @@ import webbrowser
 from contextlib import contextmanager
 from pathlib import Path
 import httpx
-from rich.progress import (BarColumn, DownloadColumn, Progress, TaskProgressColumn,
-                           TextColumn, TimeRemainingColumn, TransferSpeedColumn)
+import time
 import ui
-CHUNK = 64 * 1024
+CHUNK = 256 * 1024
 DOWNLOAD_DIR_ENV = "GHR_DOWNLOAD_DIR"
 CONFIG_FILE = Path(__file__).resolve().with_name("config.json")
 _ILLEGAL = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
@@ -24,8 +23,8 @@ MIRRORS = tuple({"id": i, "label": i if i != "direct" else "直连 GitHub",
                           "gh-proxy.org", "gh-proxy.eu.org", "ghp.keleyaa.com"))
 AUTO_ROUTE = "auto"
 PROBE_BYTES, PROBE_TIMEOUT, PROBE_GRACE = 128 * 1024, 6, 2
-RANGE_TIMEOUT, PARALLEL_MIN_SIZE = (10, 60), 2 * 1024 * 1024
-DEFAULT_WORKERS, MAX_WORKERS, WORKERS_ENV = 4, 8, "GHR_THREADS"
+RANGE_TIMEOUT, PARALLEL_MIN_SIZE = (15, 60), 512 * 1024
+DEFAULT_WORKERS, MAX_WORKERS, WORKERS_ENV = 8, 16, "GHR_THREADS"
 class DownloadError(Exception):
     """下载过程中的可预期失败。"""
 class ResumableDownloadError(DownloadError):
@@ -128,16 +127,35 @@ def _client(timeout=RANGE_TIMEOUT) -> httpx.Client:
     return httpx.Client(follow_redirects=True, timeout=timeout)
 def _aclient(timeout=RANGE_TIMEOUT) -> httpx.AsyncClient:
     return httpx.AsyncClient(follow_redirects=True, timeout=timeout)
+
+# TUI 注入的进度回调：签名 (done, total, rate) -> None。CLI 下为 None，
+# _bar 用 \r 重绘；Textual 全屏时由 tui.py 设置，把进度送到界面组件
+# （直接 print 会被 TUI 的屏幕缓冲区吞掉，所以必须走回调）。
+progress_hook = None
+
 @contextmanager
 def _bar(total: int, desc: str):
-    """TTY 时用 rich 画进度，管道/测试里直接跳过，不输出任何字符。"""
-    if not ui.is_tty():
+    """TTY 下 \r 重绘进度；TUI 注入 progress_hook 时改走回调。"""
+    if progress_hook is None and not ui.is_tty():
         yield None
         return
-    with Progress(TextColumn("{task.description}"), BarColumn(), TaskProgressColumn(),
-                  DownloadColumn(), TransferSpeedColumn(), TimeRemainingColumn()) as progress:
-        task = progress.add_task(desc, total=total)
-        yield lambda n: progress.update(task, advance=n)
+    done = 0
+    started = time.monotonic()
+
+    def tick(n: int) -> None:
+        nonlocal done
+        done += n
+        rate = done / max(0.001, time.monotonic() - started)
+        if progress_hook is not None:
+            progress_hook(done, total, rate)
+        elif ui.is_tty():
+            print("\r  " + desc + " " + ui.progress_render(done, total, rate), end="", flush=True)
+
+    try:
+        yield tick
+    finally:
+        if progress_hook is None and ui.is_tty():
+            print(flush=True)
 def _brief_error(exc: BaseException) -> str:
     return re.sub(r"\s+", " ", str(exc).strip() or exc.__class__.__name__)[:120]
 def _as_int(value) -> int:
@@ -170,7 +188,7 @@ async def _probe(client: httpx.AsyncClient, line: dict,
                                  headers={"Range": f"bytes=0-{max_bytes - 1}"}) as resp:
             if resp.status_code not in (200, 206):
                 return _bad(f"HTTP {resp.status_code}")
-            async for chunk in resp.aiter_bytes(CHUNK):
+            async for chunk in resp.aiter_raw(min(CHUNK, 32 * 1024)):
                 if chunk:
                     if not first:
                         first = loop.time() - started
@@ -182,7 +200,12 @@ async def _probe(client: httpx.AsyncClient, line: dict,
     if not got:
         return _bad("没收到任何字节")
     elapsed = max(loop.time() - started, 1e-6)
-    return {"ok": True, "speed": got / elapsed, "latency": first or elapsed,
+    # 首字节延迟（TLS 握手 / 服务器响应）不该算进吞吐：高延迟链路上
+    # 5 秒等首字节 + 0.3 秒传完，按总耗时会算成 25KB/s，把好线路误判成慢线路。
+    # 传输样本太短（一个 chunk 就送完）时退回总耗时，避免算出虚高速度。
+    transfer = elapsed - first
+    speed = got / (transfer if transfer >= 0.2 else elapsed)
+    return {"ok": True, "speed": speed, "latency": first or elapsed,
             "bytes": got, "error": ""}
 def probe_line(url: str, max_bytes: int = PROBE_BYTES, timeout: int = PROBE_TIMEOUT) -> dict:
     async def run():
@@ -261,7 +284,7 @@ def download(url: str, filename: str = "", directory: Path | None = None,
     dest_dir = directory or download_dir()
     dest = unique_path(dest_dir, safe_filename(filename or url.rsplit("/", 1)[-1]))
     part = dest.with_name(dest.name + ".part")
-    meta = _read_progress(part)
+    meta = _read_progress(part) or {}
     offset = 0
     if meta and meta.get("mode") == "stream" and meta.get("url") == url and part.is_file():
         if not ((meta.get("etag", "") and etag and meta["etag"] != etag) or
@@ -293,7 +316,7 @@ def download(url: str, filename: str = "", directory: Path | None = None,
             meta["total"] = total
             _write_progress(part, meta)
             with _bar(total, "下载") as tick, part.open("ab" if appended else "wb") as fh:
-                for chunk in resp.iter_bytes(CHUNK):
+                for chunk in resp.iter_raw(CHUNK):
                     if chunk:
                         fh.write(chunk)
                         written += len(chunk)
@@ -323,13 +346,17 @@ async def _fetch_part(client: httpx.AsyncClient, url: str, start: int, end: int,
                 raise DownloadError(f"线路中途不支持分段（HTTP {resp.status_code}）")
             with part.open("rb+") as fh:
                 fh.seek(start)
-                async for chunk in resp.aiter_bytes(CHUNK):
+                async for chunk in resp.aiter_raw(CHUNK):
                     if chunk:
                         fh.write(chunk)
                         written += len(chunk)
                         if tick:
                             tick(len(chunk))
-    except (httpx.HTTPError, asyncio.CancelledError) as exc:
+    except asyncio.CancelledError:
+        # 取消是控制流，不是业务失败：必须原样抛回给 gather/run，
+        # 否则会盖住真正的首个异常，并在事件循环关闭时留下 unhandled task。
+        raise
+    except httpx.HTTPError as exc:
         raise ResumableDownloadError(f"分段下载中断：{_brief_error(exc)}") from exc
     except DownloadError:
         raise
@@ -346,7 +373,7 @@ def download_parallel(url: str, directory: Path, filename: str, total: int, work
     bounds = splits(total, workers)
     if not bounds:
         raise DownloadError("文件大小未知，无法分段下载。")
-    meta = _read_progress(part)
+    meta = _read_progress(part) or {}
     resuming = _can_resume(part, meta, url, total, etag, modified, "parallel") and \
         meta.get("bounds") == [list(b) for b in bounds] and \
         isinstance(meta.get("done"), list) and len(meta.get("done", [])) == len(bounds) and \
@@ -365,7 +392,9 @@ def download_parallel(url: str, directory: Path, filename: str, total: int, work
     pending = [i for i, ok in enumerate(done) if not ok]
     done_bytes = sum(bounds[i][1] - bounds[i][0] + 1 for i, ok in enumerate(done) if ok)
     async def run():
-        async with _aclient() as client:
+        # 并发分段用更短的读超时：镜像拒绝并发 Range 时尽快失败，好回退单流，
+        # 不能让用户对着卡死的进度条等一分钟。
+        async with _aclient(timeout=(10, 20)) as client:
             with _bar(total, "下载") as tick:
                 async def fetch_one(i: int):
                     await _fetch_part(client, url, bounds[i][0], bounds[i][1], part, tick)
@@ -381,6 +410,10 @@ def download_parallel(url: str, directory: Path, filename: str, total: int, work
         _write_progress(part, meta)
         raise ResumableDownloadError(
             f"下载中断，已保留 {ui.human_size(done_bytes)} 进度，下次重跑只补未完成的段。") from None
+    except asyncio.CancelledError as exc:
+        # 任务被取消（并发被服务器/代理打断）：保留进度但按可失败处理，交给 fetch 回退单流
+        _write_progress(part, meta)
+        raise DownloadError(f"并发分段被取消：{_brief_error(exc)}") from exc
     except DownloadError:
         _discard_part(part)
         raise
@@ -390,12 +423,18 @@ def download_parallel(url: str, directory: Path, filename: str, total: int, work
     return _check_file(part, dest, total, total)
 def fetch(url: str, filename: str = "", directory: Path | None = None,
           workers: int | None = None) -> tuple[Path, str]:
-    """终端下载唯一入口：能分段又值得分段就并发，否则单流。"""
+    """终端下载唯一入口：优先并发分段；并发被限制时自动回退单流，保证能下完。"""
     dest_dir = directory or download_dir()
     name = safe_filename(filename or url.rsplit("/", 1)[-1])
     count = worker_count() if workers is None else max(1, workers)
     total, supports_range, etag, modified = line_file_info_full(url)
     if supports_range and count > 1 and total >= PARALLEL_MIN_SIZE:
-        saved = download_parallel(url, dest_dir, name, total, count, etag, modified)
-        return saved, f"{count} 并发分段 · {ui.human_size(total)}"
+        try:
+            saved = download_parallel(url, dest_dir, name, total, count, etag, modified)
+            return saved, f"{count} 并发分段 · {ui.human_size(total)}"
+        except ResumableDownloadError:
+            raise  # 用户主动中断：尊重，不要偷偷换成单流重下
+        except DownloadError as exc:
+            # 镜像假支持 Range / 代理限制并发连接：退回单流，慢一点但一定下得完
+            print(f"  并发分段失败（{exc}），改用单流重试 ...")
     return download(url, name, dest_dir, total, etag, modified), "单流下载"

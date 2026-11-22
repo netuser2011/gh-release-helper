@@ -2,19 +2,16 @@
 # -*- coding: utf-8 -*-
 """终端翻页器：在备用屏幕里查看 Release 更新说明，↑/↓ 滚动，Q 返回。
 
-按键读取只用标准库（Windows msvcrt / POSIX termios），正文排版交给 rich：
-GitHub Release 的 body 是 Markdown，渲染后标题、列表、链接才有结构可读性。
+按键读取只用标准库（Windows msvcrt / POSIX termios），Markdown 正文用
+轻量文本解析成可读行（标题装饰、列表符号、折行），不依赖 rich。
 非交互环境降级成行输入，便于测试与管道。
 """
 
 from __future__ import annotations
 
-import io
+import re
 import shutil
 import sys
-
-from rich.console import Console
-from rich.markdown import Markdown
 
 import ui
 
@@ -53,22 +50,40 @@ def wrap_text(text: str, width: int) -> list[str]:
 
 
 def render_markdown_lines(text: str, width: int) -> list[str]:
-    """用 rich 把 Markdown 正文渲染成可直接滚动的纯文本行。
+    """把 Markdown 正文轻量渲染成可滚动的文本行，不依赖第三方库。
 
-    失败时退回 wrap_text，保证一个格式怪异的 release 不会让翻页器崩溃。
+    处理标题、无序/有序列表、分隔线，其余按显示宽度折行；链接语法去掉外壳
+    保留可读文字。解析失败时退回 wrap_text，保证怪异正文不会让翻页器崩溃。
     """
     try:
-        buf = io.StringIO()
-        console = Console(
-            file=buf,
-            width=max(20, width),
-            no_color=True,
-            force_terminal=False,
-            highlight=False,
-            soft_wrap=True,
-        )
-        console.print(Markdown(text))
-        return buf.getvalue().splitlines()
+        out: list[str] = []
+        width = max(20, width)
+        for raw in (text or "").splitlines():
+            line = raw.rstrip()
+            if not line.strip():
+                out.append("")
+                continue
+            heading = re.match(r"^(#{1,6})\s+(.*)$", line)
+            if heading:
+                marker = "■ " if len(heading.group(1)) <= 2 else "▸ "
+                out.extend(wrap_text(marker + heading.group(2), width))
+                continue
+            unordered = re.match(r"^\s*[-*+]\s+(.*)$", line)
+            if unordered:
+                out.extend(wrap_text("• " + unordered.group(1), width))
+                continue
+            ordered = re.match(r"^\s*\d+[.)]\s+(.*)$", line)
+            if ordered:
+                out.extend(wrap_text("• " + ordered.group(1), width))
+                continue
+            if re.match(r"^\s*(---+|\*\*\*+)\s*$", line):
+                out.append("─" * min(width, 40))
+                continue
+            # [text](url) → text，去掉链接外壳只留可读文字
+            plain = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
+            plain = re.sub(r"[*_`]", "", plain)
+            out.extend(wrap_text(plain, width))
+        return out
     except Exception:  # noqa: BLE001  排版是增强项，不能挡住查看正文
         return wrap_text(text, width)
 

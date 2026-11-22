@@ -2,28 +2,20 @@
 # -*- coding: utf-8 -*-
 """终端 UI 工具：颜色、分隔线、表格、进度条与输入辅助。
 
-纯逻辑函数（宽度/折行/体积/进度文本/ANSI 颜色）保持原有行为，供全项目与测试复用；
-表格与横幅交给 rich 渲染，获得自动列宽、中文/emoji 对齐与更整齐的边框。
-NO_COLOR、管道输出时 rich 与自研代码一样降级为纯文本。
+所有渲染用纯文本实现，不直接依赖 rich（项目改用 textual 做 TUI；textual
+内部虽自带 rich，但本模块不再直接 import 它）。纯函数（宽度/折行/体积/
+进度文本/ANSI 颜色）供全项目与测试复用，NO_COLOR、管道输出时降级为纯文本。
 """
 
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import sys
 import time
 import traceback
 from pathlib import Path
-
-from io import StringIO
-
-from rich import box
-from rich.console import Console
-from rich.panel import Panel
-from rich.progress import ProgressBar
-from rich.table import Table
-from rich.text import Text
 
 # ---------- ANSI 序列 ----------
 RESET = "\033[0m"
@@ -53,7 +45,9 @@ def setup_streams() -> None:
     """
     for stream in (sys.stdout, sys.stderr):
         try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
+            reconfigure = getattr(stream, "reconfigure", None)
+            if reconfigure:
+                reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, ValueError, OSError):
             pass  # 输出流被替换成不支持 reconfigure 的对象时跳过
 
@@ -165,53 +159,47 @@ def clear() -> None:
         os.system("cls" if os.name == "nt" else "clear")
 
 
-def _console(*, width: int | None = None, file=None) -> Console:
-    """统一创建 rich 控制台：尊重 NO_COLOR / FORCE_COLOR，动态跟随 stdout。"""
-    return Console(
-        file=file,
-        width=width,
-        no_color=not color_enabled(),
-        force_terminal=True if color_enabled() else None,
-        markup=False,
-        highlight=False,
-        soft_wrap=True,
-    )
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def _plain(cell: str) -> str:
-    """rich 不认识本项目的 ANSI 常量，渲染前把颜色码去掉。"""
-    return Text.from_ansi(str(cell)).plain
+    """去掉 ANSI 颜色码，得到单元格的可见文本。"""
+    return _ANSI.sub("", str(cell))
 
 
 def banner(title: str, subtitle: str = "") -> None:
-    """渲染顶部标题框（rich Panel，自动适配标题宽度）。"""
-    body = _plain(title)
+    """渲染顶部标题框（纯文本 Unicode 边框，自动适配内容宽度）。"""
+    lines = [_plain(title)]
     if subtitle:
-        body += "\n" + _plain(subtitle)
-    panel = Panel(
-        body,
-        title=None,
-        border_style="cyan",
-        expand=False,
-        padding=(0, 1),
-    )
-    _console().print(panel)
+        lines.append(_plain(subtitle))
+    inner = max(display_width(line) for line in lines) + 2
+    top = "╭" + "─" * inner + "╮"
+    bottom = "╰" + "─" * inner + "╯"
+    print(c(top, CYAN))
+    for line in lines:
+        print(c("│", CYAN) + " " + line + " " * (inner - display_width(line) - 1) + c("│", CYAN))
+    print(c(bottom, CYAN))
 
 
 def table(rows: list[list[str]], headers: list[str]) -> None:
-    """输出等宽对齐的表格：rich 负责列宽、中文宽度与边框。"""
-    grid = Table(box=box.ASCII, show_header=True, header_style="bold", pad_edge=True)
-    for header in headers:
-        grid.add_column(_plain(header))
-    for row in rows:
-        grid.add_row(*[_plain(cell) for cell in row])
-    # 逻辑宽度取「终端宽度」与「所有单元格实际宽度」的较大者，
-    # 避免下载链接/更新摘要等长内容被 rich 挤压成省略号。
-    natural = max((display_width(str(c)) for c in headers), default=0)
-    for row in rows:
-        natural = max(natural, sum(display_width(str(c)) for c in row))
-    width = max(term_width(), 120, natural + len(headers) * 4 + 2)
-    _console(width=width).print(grid)
+    """输出等宽对齐的纯文本表格：按显示宽度算列宽，中英文混排也不错位。"""
+    columns = len(headers)
+    cells = [[_plain(x) for x in row] + [""] * (columns - len(row)) for row in rows]
+    widths = [display_width(str(headers[i])) for i in range(columns)]
+    for row in cells:
+        for i, cell in enumerate(row):
+            widths[i] = max(widths[i], display_width(str(cell)))
+    widths = [min(w, max(20, term_width() - columns * 3)) for w in widths]
+
+    def render(row: list[str]) -> str:
+        parts = [" " + str(cell) + " " * (widths[i] - display_width(str(cell))) + " "
+                 for i, cell in enumerate(row)]
+        return "|" + "|".join(parts) + "|"
+
+    print(c(render(list(headers)), BOLD))
+    print("+" + "+".join("-" * (w + 2) for w in widths) + "+")
+    for row in cells:
+        print(render(row))
 
 
 def human_size(num: float) -> str:
@@ -244,23 +232,16 @@ def progress_line(done: int, total: int, rate: float, width: int = 26) -> str:
 
 
 def progress_render(done: int, total: int, rate: float, width: int = 26) -> str:
-    """用 rich 渲染进度条主体，后接与 progress_line 相同的文字信息。
+    """纯文本进度条主体 + 与 progress_line 相同的文字信息。
 
-    保留 downloader 现有的 \\r 重绘机制，避免改动下载状态机；
-    无颜色时 rich 输出破折号进度条，有颜色时由 rich 上色。
+    用破折号风格（不含 █/░），供 downloader 的 \\r 重绘机制使用；
+    这是替代 rich 进度条的轻量实现。
     """
-    buf = StringIO()
-    console = Console(
-        file=buf,
-        width=max(width + 8, 40),
-        no_color=not color_enabled(),
-        force_terminal=True if color_enabled() else None,
-    )
-    bar = ProgressBar(total=total if total > 0 else 100,
-                      completed=min(done, total) if total > 0 else 0, width=width)
-    console.print(bar, end="")
+    ratio = (done / total) if total > 0 else 0.0
+    filled = min(width, int(width * ratio))
+    bar = "─" * filled + "-" * (width - filled)
     tail = progress_line(done, total, rate, width=1).split("]", 1)[-1]
-    return buf.getvalue() + tail
+    return "[" + bar + "]" + tail
 
 
 def ask(prompt: str = ">>> ") -> str:

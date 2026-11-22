@@ -1,0 +1,8 @@
+# mypy 渐进式接入：现阶段只检查 4 个核心模块。
+# main.py / tui.py / ui.py 大量用 dict 传递 release/asset/favorite，
+# 严格模式会因缺键类型产生大量噪音，等核心模块干净后再逐步纳入。
+[tool.mypy]
+python_version = "3.10"
+files = ["github_api.py", "downloader.py", "version.py", "favorites.py"]
+ignore_missing_imports = true
+show_error_codes = true

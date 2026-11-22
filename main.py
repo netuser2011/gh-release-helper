@@ -26,8 +26,10 @@ from pathlib import Path
 
 import downloader as dl
 import favorites as fav
+import flow_common as fc
 import github_api as gh
 import pager
+import self_update as su
 import syscert
 import ui
 
@@ -52,58 +54,25 @@ token_source = ""
 
 
 def pick_token(cli_token: str) -> tuple[str, str]:
-    """确定本次使用的 Token 及其来源，Token 一律来自外部，不写进源码。"""
-    if cli_token:
-        return cli_token.strip(), "--token 参数"
-    env = os.environ.get("GITHUB_TOKEN", "").strip()
-    if env:
-        return env, "环境变量"
-    from_file = gh.resolve_token()
-    if from_file:
-        return from_file, "本地 .github_token"
-    return "", ""
+    """确定本次 Token 及来源；实现已迁往 flow_common，这里保留同名包装以兼容测试。"""
+    return fc.pick_token(cli_token)
 
 
 def token_state(token: str) -> str:
+    """主界面 Token 状态；依赖本模块的 token_source，故实现留在此处。"""
     if not token:
         return ui.c("未配置（限流 60 次/小时）· 按 0 配一个", ui.RED)
     return ui.c(f"已配置 · {token_source}", ui.GREEN)
 
 
 def configure_token() -> str:
-    """打开 GitHub 的 Token 生成页，用户粘回来只写进本地 .github_token。
-
-    菜单里的 0 和首次启动的引导都走这里：链接由代码打印、交给系统浏览器打开，
-    Token 本身永远来自用户输入，不进源码、不进命令行历史以外的地方。
-    """
-    print()
-    print(ui.c("  GitHub Token 生成页（公共仓库只需要 public_repo 一项）：", ui.CYAN))
-    print(f"  {ui.c(gh.TOKEN_CREATE_URL, ui.BOLD)}")
-    print(ui.c(f"  想用细粒度 Token：{gh.FINE_GRAINED_URL}", ui.GREY))
-    print(ui.c(f"  查看/撤销已发的 Token：{gh.TOKENS_PAGE_URL}", ui.GREY))
-    if ui.confirm("  现在用系统默认浏览器打开这个页面吗？", default=True):
-        if dl.open_in_browser(gh.TOKEN_CREATE_URL):
-            print(ui.c("  ✔ 已交给浏览器。创建后把页面顶部那串以 ghp_ 开头的字符粘回来。", ui.GREEN))
-        else:
-            print(ui.c("  ⚠ 没能自动打开浏览器，手动复制上面第一行地址即可。", ui.YELLOW))
-    raw = ui.ask("  粘贴 Token（直接回车放弃）：")
-    if not raw:
-        print(ui.c("  已取消，继续匿名使用（限流 60 次/小时）。", ui.GREY))
-        return ""
-    path = gh.save_token(raw)
-    print(ui.c(f"  ✔ 已保存到 {path}（已在 .gitignore 中忽略，不会被提交）。", ui.GREEN))
-    return raw
+    """Token 配置向导；实现已迁往 flow_common，保留包装供 main 与测试 patch。"""
+    return fc.configure_token()
 
 
 def offer_token_setup() -> str:
-    """首次运行且没有 Token 时，先问一句，再把页面和粘贴交给 configure_token。"""
-    if not ui.is_tty():
-        return ""
-    print()
-    if not ui.confirm("未检测到 GitHub Token（匿名限流 60 次/小时），现在配置一个吗？", default=False):
-        print(ui.c("  好的，跳过。之后可在菜单里按 0，或把 Token 写入 .github_token / 环境变量 GITHUB_TOKEN。", ui.GREY))
-        return ""
-    return configure_token()
+    """首次启动的 Token 引导；注入本模块 configure_token，测试 patch 才能命中。"""
+    return fc.offer_token_setup(configure_token)
 
 
 # ---------- 通用小流程 ----------
@@ -588,7 +557,11 @@ def flow_check_updates(store: dict, token: str) -> None:
 
     限流保护分三层：无 Token 超过 40 个直接拒绝；超过 30 个先确认；
     请求前查剩余配额、遇 403/429 立即停批。全程顺序请求，间隔 0.5 秒。
+
+    开头先检查本程序自身版本（失败只提示、不阻塞下面的收藏检查）。
     """
+    su.run(token)
+
     items = fav.entries(store)
     total = len(items)
     if not total:
@@ -680,7 +653,7 @@ MENU_ITEMS = [
     ("2", "查看收藏", "调出已存仓库的下载链接，支持直接下载"),
     ("3", "添加收藏", "把常用仓库存进 favorites.json"),
     ("4", "退出", "保存收藏并退出"),
-    ("5", "检查更新", "批量检查收藏仓库的最新 Release"),
+    ("5", "检查更新", "检查本程序更新，并批量检查收藏仓库的最新 Release"),
 ]
 
 # 五大流程之外的辅助项：不占编号 1-5，也不参与 dispatch()
@@ -782,6 +755,13 @@ def main() -> int:
     store = fav.load()
     if store.get("_recovered"):
         print(ui.c("  ⚠ 原 favorites.json 已损坏，已备份为 favorites.json.bak 并重建。", ui.YELLOW))
+
+    # 交互终端默认进入 Textual 全屏 TUI（方向键/鼠标，不再按编号）。
+    # 非 TTY（管道 / CI / 测试）与设了 GHR_NO_TUI 时走下方的传统菜单。
+    if ui.is_tty() and not os.environ.get("GHR_NO_TUI"):
+        import tui
+        tui.main(token, token_source)
+        return 0
 
     try:
         notice = ""

@@ -46,6 +46,8 @@ class CheckUpdatesTest(unittest.TestCase):
             setattr(obj, name, value)
             self.addCleanup(setattr, obj, name, original)
 
+        self.self_checks = []
+        patch(app.su, "run", lambda token: self.self_checks.append(token))
         patch(app.gh, "get_latest_release_or_explain", self._get_release)
         patch(app.gh, "rate_limit_status", self._rate_limit_status)
         patch(app.time, "sleep", self._sleep)
@@ -81,7 +83,7 @@ class CheckUpdatesTest(unittest.TestCase):
         return buf.getvalue()
 
     def test_menu_item_and_dispatch(self):
-        self.assertIn(("5", "检查更新", "批量检查收藏仓库的最新 Release"), app.MENU_ITEMS)
+        self.assertIn(("5", "检查更新", "检查本程序更新，并批量检查收藏仓库的最新 Release"), app.MENU_ITEMS)
         calls = []
         original = app.flow_check_updates
 
@@ -204,6 +206,19 @@ class CheckUpdatesTest(unittest.TestCase):
         self.assertIn("收藏夹还是空的", out)
         self.assertEqual(self.checked, [])
         self.assertEqual(self.quota_calls, 0)
+
+
+class SelfUpdateIntegrationTest(CheckUpdatesTest):
+    """第 5 项对自身更新的接入：一定调用自身检查，且不影响收藏检查。"""
+
+    def test_self_update_is_called_with_token(self):
+        self.run_flow(make_store(1), token="tok")
+        self.assertEqual(self.self_checks, ["tok"])
+
+    def test_favorites_still_checked_after_self_update(self):
+        self.run_flow(make_store(2), token="tok")
+        self.assertEqual(self.self_checks, ["tok"])
+        self.assertEqual(len(self.checked), 2)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('version.txt', '.')],
     hiddenimports=['truststore._api', 'truststore._windows', 'truststore._openssl'],
     hookspath=[],
     hooksconfig={},

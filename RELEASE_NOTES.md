@@ -1,9 +1,8 @@
-# GH Downloader v1.2.0
+# GH Downloader v1.3.0
 
-> 终端里的 GitHub Release 下载助手 —— 搜索、收藏、一键下载。
+> 终端里的 GitHub Release 下载助手 —— 全屏交互、按类型筛选、一键下载。
 
-本版为 **功能更新版**：新增「批量检查更新」与「更新说明全屏查看」，界面改用 rich 渲染，
-下载核心重写为 asyncio + httpx，并用 truststore 自动信任系统证书。安装版与便携版同步更新。
+本版为 **大功能更新版**：界面升级为 Textual 全屏 TUI，资产按后缀分组筛选，下载完自动运行安装包或解压，链接可复制，收藏可删除，并修复了进度条与「只打印链接」等一系列问题。
 
 ---
 
@@ -11,8 +10,8 @@
 
 | 文件 | 说明 |
 | --- | --- |
-| `GHDownloader-Windows-V1.2.0-Setup.exe` | **推荐。** 安装版，双击运行，自动配置快捷方式与卸载项 |
-| `GHDownloader-Windows-V1.2.0.zip` | 便携版，解压后直接运行 `GH Downloader.exe`，无需安装 |
+| `GHDownloader-Windows-V1.3.0-Setup.exe` | **推荐。** 安装版，双击运行，自动配置快捷方式与卸载项 |
+| `GHDownloader-Windows-V1.3.0.zip` | 便携版，解压后直接运行 `GH Downloader.exe`，无需安装 |
 
 两种文件均无需安装 Python。安装版与便携版功能完全一致。
 
@@ -20,10 +19,10 @@
 
 ```bash
 # 安装版（Windows）
-wget "https://github.com/netuser2011/gh-release-helper/releases/download/v1.2.0/GHDownloader-Windows-V1.2.0-Setup.exe"
+wget "https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.0/GHDownloader-Windows-V1.3.0-Setup.exe"
 
 # 便携版
-wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/releases/download/v1.2.0/GHDownloader-Windows-V1.2.0.zip"
+wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.0/GHDownloader-Windows-V1.3.0.zip"
 ```
 
 ---
@@ -32,18 +31,26 @@ wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/relea
 
 ### 新增
 
-- **菜单 5「检查更新」**：批量检查收藏仓库的最新 Release，表格对比上次/最新 tag 与更新摘要，带限流保护（无 Token 上限 40 个、403/429 自动停止）。
-- **更新说明全屏查看**：搜索结果里输入 `d` + 编号（如 `d3`）打开新窗口，rich Markdown 排版，↑/↓ 滚动、Q 返回，不跳浏览器。
+- **Textual 全屏 TUI**：搜索、仓库、资产、下载、收藏、更新说明全部改为可点击/方向键操作的全屏页面，网络请求放后台，界面不卡。
+- **按类型分组筛选**：Release 资产先按 ZIP / EXE / TAR / APK / MAS / KMASIX 等后缀分组，选类型后再列具体文件，不再一次刷出几十条链接。
+- **下载方式三按钮**：终端下载 / 浏览器下载 / 只打印链接，点一下即可，不用再输 1/2/3。
+- **下载进度与测速可视化**：展示 7 条线路测速结果与自动选中的线路，下载中用进度条 + 实时速度显示。
+- **下载后处理**：安装包下载完弹窗询问是否直接运行；zip 自动解压并询问是否删包。
+- **可复制的链接页**：只打印链接时打开独立页面，输入框可框选复制，也有复制按钮与反馈。
+- **收藏删除**：二次确认后删除并刷新列表与计数。
+- **统一返回按钮**：所有页面都有「← 返回上一级」按钮，ESC 仍可用。
+- **mypy 类型检查**：CI 增加渐进式类型检查，先覆盖四个核心模块。
 
 ### 改进
 
-- **rich 渲染界面**：表格、横幅与进度条改用 rich，自动列宽，中文/emoji 对齐更稳。
-- **truststore 信任系统证书**：启动时注入系统证书存储，开代理工具不再报 SSL 错误，无需手动导出 PEM；已设 `REQUESTS_CA_BUNDLE` 时不覆盖。
-- **downloader 重写为 asyncio + httpx**：删掉 threading/Lock/ThreadPoolExecutor，测速与分段下载改用 `asyncio.gather`，进度条交给 rich，代码量比原先少 30%；断点续传、多线路测速、文件名净化等行为保持不变。
+- **下载提速与稳定性**：测速不再把首字节延迟误算成吞吐；默认并发提升到 8 路（上限 16），分段门槛降到 512 KB，读取块增大到 256 KB 并跳过解码层；并发被限制时自动回退单流，不再直接失败。
 
-### 依赖变化
+### 修复
 
-- 新增 `httpx`（下载与测速）、`rich`（界面与 Markdown）、`truststore`（系统证书）；`requests` 仍用于 GitHub API。共 4 个第三方库，`pip install -r requirements.txt` 一句装齐。
+- 全屏界面下下载进度条被吞、完成后看不到速度的问题。
+- 「只打印下载链接」点击后没有任何输出的问题。
+- 搜索结果出来后不能直接回车进入仓库页的问题。
+- 弹窗覆盖时刷新状态行抛异常导致后台任务报错的问题。
 
 ---
 
@@ -51,7 +58,7 @@ wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/relea
 
 **安装版（推荐）：**
 
-1. 双击 `GHDownloader-Windows-V1.2.0-Setup.exe`
+1. 双击 `GHDownloader-Windows-V1.3.0-Setup.exe`
 2. 按向导选择安装路径（默认 `C:\Program Files\GH Downloader`）
 3. 完成后桌面出现快捷方式，开始菜单同步创建
 4. 卸载：设置 → 应用 → 已安装的应用 → 搜索 "GH Downloader" → 卸载
@@ -68,7 +75,7 @@ wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/relea
 
 ## 从源码运行
 
-需要 Python 3.10+ 和 `requests` / `httpx` / `rich` / `truststore`：
+需要 Python 3.10+ 和 `requests` / `httpx` / `textual` / `truststore`：
 
 ```bash
 git clone https://github.com/netuser2011/gh-release-helper
