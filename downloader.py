@@ -16,6 +16,11 @@ CHUNK = 256 * 1024
 DOWNLOAD_DIR_ENV = "GHR_DOWNLOAD_DIR"
 CONFIG_FILE = Path(__file__).resolve().with_name("config.json")
 _ILLEGAL = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+# Windows 保留设备名：不带扩展名的 CON / NUL / COM1 等直接 open 会失败
+_WINDOWS_RESERVED = frozenset(
+    ("CON", "PRN", "AUX", "NUL",
+     *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10)))
+)
 # 镜像写死白名单：把下载地址交给任意第三方，等于让人有机会替换文件内容。
 MIRRORS = tuple({"id": i, "label": i if i != "direct" else "直连 GitHub",
                  "prefix": "" if i == "direct" else f"https://{i}/"}
@@ -104,7 +109,10 @@ def download_dir() -> Path:
     return target
 def safe_filename(name: str, fallback: str = "release-asset") -> str:
     base = (name or "").replace("\\", "/").rsplit("/", 1)[-1]
-    return (_ILLEGAL.sub("", base).strip().strip(".") or fallback)[:150]
+    cleaned = _ILLEGAL.sub("", base).strip().strip(".")
+    if cleaned and cleaned.upper() in _WINDOWS_RESERVED:
+        cleaned += "_"  # CON / NUL / COM1 这类保留名加下划线，避免 Windows 打开失败
+    return (cleaned or fallback)[:150]
 def unique_path(directory: Path, filename: str) -> Path:
     """同名文件自动加 (1)(2)，绝不覆盖用户已有文件。"""
     candidate = directory / filename
@@ -122,11 +130,48 @@ def open_in_browser(url: str) -> bool:
     except Exception:
         return False
 
+NO_PROXY_VARS = ("NO_PROXY", "no_proxy")
+
+
+def _no_proxy_entry_ok(entry: str) -> bool:
+    """httpx 把 NO_PROXY 的每一项当 URL 解析，IPv6 字面量（[::1]、::1）会在
+    normalize_port 上抛 InvalidURL，直接把测速和下载打死。代理工具（Watt Toolkit
+    等）习惯把这些写进 NO_PROXY，所以这一步不是可选的。"""
+    return not any(ch in entry for ch in "[]:")
+
+
+def _clean_no_proxy(raw: str) -> str:
+    kept = [e.strip() for e in raw.split(",") if e.strip() and _no_proxy_entry_ok(e.strip())]
+    return ",".join(kept)
+
+
+@contextmanager
+def _httpx_friendly_env():
+    """构造客户端的那一小段时间里，把 NO_PROXY 洗成 httpx 认的写法，出来就还原。
+    只影响 httpx：requests/urllib3 自己会做 fnmatch，遇到这些条目不会报错。"""
+    saved: list[tuple[str, str]] = []
+    for var in NO_PROXY_VARS:
+        raw = os.environ.get(var, "")
+        if not raw:
+            continue
+        cleaned = _clean_no_proxy(raw)
+        if cleaned != raw:
+            saved.append((var, raw))
+            os.environ[var] = cleaned
+    try:
+        yield
+    finally:
+        for var, raw in saved:
+            os.environ[var] = raw
+
+
 def _client(timeout=RANGE_TIMEOUT) -> httpx.Client:
     # truststore 已在启动时注入系统证书，无需再传 verify 路径
-    return httpx.Client(follow_redirects=True, timeout=timeout)
+    with _httpx_friendly_env():
+        return httpx.Client(follow_redirects=True, timeout=timeout)
 def _aclient(timeout=RANGE_TIMEOUT) -> httpx.AsyncClient:
-    return httpx.AsyncClient(follow_redirects=True, timeout=timeout)
+    with _httpx_friendly_env():
+        return httpx.AsyncClient(follow_redirects=True, timeout=timeout)
 
 # TUI 注入的进度回调：签名 (done, total, rate) -> None。CLI 下为 None，
 # _bar 用 \r 重绘；Textual 全屏时由 tui.py 设置，把进度送到界面组件
@@ -220,9 +265,17 @@ def probe_lines(url: str, wall_timeout: int = 0) -> list[dict]:
         async with _aclient() as client:
             tasks = [asyncio.create_task(_probe(client, item)) for item in lines]
             done, pending = await asyncio.wait(tasks, timeout=budget)
+            measured: dict[int, dict] = {}
+            for task in done:
+                exc = task.exception()
+                # done 里带异常的任务不能裸 result()：会把测速的意外
+                # 抛穿整个下载流程，转成该线路的"不通"明细
+                measured[tasks.index(task)] = _bad(f"测速异常：{exc}") if exc is not None else task.result()
             for task in pending:
                 task.cancel()
-            return {tasks.index(task): task.result() for task in done}
+            if pending:
+                await asyncio.wait(pending)
+            return measured
     measured = asyncio.run(run())
     late = _bad(f"测速超过 {budget} 秒未返回")
     return [{**item, **measured.get(i, late)} for i, item in enumerate(lines)]

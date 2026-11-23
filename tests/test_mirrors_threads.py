@@ -627,6 +627,52 @@ class ProbeConcurrencyTest(unittest.TestCase):
             self.assertIn("未返回", item["error"])
 
 
+class NoProxyCompatTest(unittest.TestCase):
+    """代理工具写进 NO_PROXY 的 [::1] 会让 httpx 抛 InvalidURL，测速与下载会全线崩。"""
+
+    HOSTILE = "localhost,.localhost,127.0.0.1,127.0.0.0/8,[::1],::1"
+
+    def setUp(self):
+        self.saved = {var: os.environ.get(var) for var in dl.NO_PROXY_VARS}
+        self.addCleanup(self.restore)
+
+    def restore(self):
+        for var, value in self.saved.items():
+            if value is None:
+                os.environ.pop(var, None)
+            else:
+                os.environ[var] = value
+
+    def set_hostile(self):
+        for var in dl.NO_PROXY_VARS:
+            os.environ[var] = self.HOSTILE
+
+    def test_ipv6_literals_are_dropped(self):
+        self.assertEqual(dl._clean_no_proxy(self.HOSTILE),
+                         "localhost,.localhost,127.0.0.1,127.0.0.0/8")
+
+    def test_both_clients_construct_under_hostile_no_proxy(self):
+        self.set_hostile()
+        with dl._client() as sync_client:
+            self.assertIsNotNone(sync_client)
+
+        import asyncio
+
+        async def make_async():
+            client = dl._aclient()
+            await client.aclose()
+            return True
+
+        self.assertTrue(asyncio.run(make_async()))
+
+    def test_environment_is_restored_after_construction(self):
+        self.set_hostile()
+        with dl._client():
+            pass
+        for var in dl.NO_PROXY_VARS:
+            self.assertEqual(os.environ[var], self.HOSTILE, "清洗只该在构造期间生效")
+
+
 class SpeedtestTableTest(unittest.TestCase):
     """测速表：哪条被选中、不通的那条为什么不通，都得一眼看出来。"""
 
