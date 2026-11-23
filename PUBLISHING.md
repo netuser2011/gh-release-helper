@@ -33,7 +33,8 @@ git check-ignore -v .github_token favorites.json config.json crash.log
 grep -rn "ghp_[A-Za-z0-9]" --include="*.py" .
 
 # 3) 文档与代码里没写死本机用户名（这条必须完全没有输出）
-grep -rn "$(basename "$HOME")" --include="*.md" --include="*.py" --include="*.yml" --include="*.bat" .
+#    包含 *.spec 和 *.iss：这两个文件专门存打包路径，正是最容易漏的地方
+grep -rn "$(basename "$HOME")" --include="*.md" --include="*.py" --include="*.yml" --include="*.bat" --include="*.spec" --include="*.iss" .
 
 # 4) 待提交清单里没有意外文件
 ls -a
@@ -48,7 +49,7 @@ ls -a
 - 第 3 条同理：绝对路径一律写成 `你的路径/gh-release-helper`，PowerShell 例子用
   `$env:USERNAME` 而不是真用户名；桌面路径、`C:/Users/…` 都不要进公开仓库。
 - `.github_token` 里放的是真实 Token，公开发布前建议直接删掉（`rm .github_token`）：
-  程序会退回匿名模式，需要解除限流时按菜单里的 `0` 会重新问一次，Token 只落回本地文件。
+  程序会退回匿名模式，需要解除限流时按菜单里的 `5` 会重新问一次，Token 只落回本地文件。
   决定留着的话它的权限通常是 `0666`，在 PowerShell 里收紧一下：
   ```powershell
   icacls .github_token /inheritance:r /grant:r "$env:USERNAME:F"
@@ -141,24 +142,51 @@ git push -u origin main
 全绿才算发布完成。第二条里有一条专门的检查：不设 `PYTHONUTF8` / `PYTHONIOENCODING`，
 直接用系统默认编码走一遍菜单退出——这正是之前「双击闪退」的触发条件，改坏了就会变红。
 
-## 第 7 步：打 tag，发 Release
+## 第 7 步：打包 Windows 产物
 
-```bash
-git tag -a v1.0.0 -m "第一个公开版本：搜索 / 收藏 / 下载 / 报错不消失"
-git push origin v1.0.0
+发布物只有两个，都由同一份 `GHDownloader.spec` 产出。路径全部相对仓库根目录，换机器不用改任何文件：
+
+```powershell
+python -m pip install pyinstaller
+python -m PyInstaller --clean --noconfirm GHDownloader.spec   # → dist\GH Downloader\
+
+Compress-Archive -Path "dist\GH Downloader\*" `
+  -DestinationPath "Output\GHDownloader-Windows-V1.3.1.zip"   # 便携版
+iscc setup.iss                                                # 安装版 → Output\...-Setup.exe
 ```
 
-网页 → Releases → Draft new release → 选 `v1.0.0`：
+四处版本号必须同时对得上，漏改任何一处就会给出 404 的下载链接或"永远有更新"：
 
-- **Release title**：`v1.0.0 终端里的 GitHub Release 下载助手`
-- **Generate the changelog** 按钮先点一下，再手动整理成 CHANGELOG.md 里那段的摘要
-- 这个工具本身是源码，**不需要上传二进制资产**；想上传也行，把
-  `git archive` 出来的 zip 传上去：
-  ```bash
-  git archive --format=zip --prefix=gh-release-helper/ -o ../gh-release-helper-v1.0.0.zip HEAD
-  ```
+| 位置 | 写法 |
+| --- | --- |
+| `version.txt` | 唯一真相源（`V1.3.1`）；源码里不写死版本号 |
+| `setup.iss` | `AppVersion=1.3.1` + `OutputBaseFilename=GHDownloader-Windows-V1.3.1-Setup` |
+| README / RELEASE_NOTES 的直链 | `.../releases/download/v1.3.1/GHDownloader-Windows-V1.3.1-Setup.exe` |
+| `docs/index.html` 的按钮链接 | 同上，便携版一起改 |
 
-## 第 8 步：让别人找到它
+打完先验三件事，不用联网：
+
+- `dist\GH Downloader\_internal\version.txt` 存在且是新版本号。缺了它，程序会认自己是
+  `V0.0.0`（`version.py` 的回退值），检查更新永远提示有新版。
+- 双击 `dist\GH Downloader\GH Downloader.exe` 能进全屏 TUI，标题栏版本号正确。
+- 便携版解压后 `GH Downloader.exe` 与 `_internal\` 必须留在同一目录，别单独搬 exe。
+
+## 第 8 步：打 tag，发 Release
+
+```bash
+git tag -a v1.3.1 -m "v1.3.1：代理兼容修复 / 键位统一 / 打包可复现"
+git push origin v1.3.1
+```
+
+网页 → Releases → Draft new release → 选 `v1.3.1`：
+
+- **Release title**：`v1.3.1 代理兼容修复 · 键位统一 · 打包可复现`
+- **Describe what this release does** 直接粘 `RELEASE_NOTES.md` 的正文，别只写一句"see changelog"
+- **上传两个二进制资产**（第 7 步的产物，名字必须和 README/官网的直链一字不差）：
+  `GHDownloader-Windows-V1.3.1-Setup.exe`、`GHDownloader-Windows-V1.3.1.zip`
+- 源码包交给 GitHub 自带的 `Source code (zip/tar.gz)`，不用自己 `git archive` 再传一份
+
+## 第 9 步：让别人找到它
 
 README 第一屏已经写清了「不知道作者也能找」这个卖点，可以发去这些地方（按你自己的判断）：
 
@@ -166,8 +194,8 @@ README 第一屏已经写清了「不知道作者也能找」这个卖点，可�
 - `awesome-cli-apps`、`awesome-python` 之类的清单仓库提 PR
 
 一句话介绍模板：
-> 不知道作者是谁也能用——只输入仓库名就能搜出候选，按编号选，收藏常用项目，
-> 然后浏览器 + 本地同时下载。纯终端，只依赖 requests。
+> 不知道作者是谁也能用——只输入仓库名就能搜出候选，全屏 TUI 里选类型、选线路、一键下载，
+> 中断能续传。纯终端，Windows 有免 Python 的安装版。
 
 ## 发布后自检清单
 
@@ -180,3 +208,6 @@ README 第一屏已经写清了「不知道作者也能找」这个卖点，可�
 - [ ] Actions 全绿；徽章能显示
 - [ ] 新 issue 页面能看到「问题反馈 / 功能建议」两个模板
 - [ ] `git log --all -p -S "ghp_"` 无输出（确认历史里没有 Token）
+- [ ] Release 页面两个资产名与 README / RELEASE_NOTES / 官网的直链逐字一致，点开不是 404
+- [ ] 安装版与便携版各跑一次：TUI 标题栏版本号等于 `version.txt`，且「检查更新」不再提示本程序有新版
+- [ ] 开着代理工具再下一次：`NO_PROXY` 里带 `[::1]` 这类 IPv6 字面量时，测速与下载不能报 `InvalidURL`
