@@ -378,5 +378,63 @@ class FavoritesDeleteTest(unittest.TestCase):
         self.assertTrue(saved)
 
 
+class CheckUpdatesParityTest(unittest.TestCase):
+    """TUI 的检查更新必须和 CLI 走同一套裁剪：该拒的直接拒、该问的弹窗问。"""
+
+    def store(self, n):
+        return {"version": 1, "repos": {
+            f"o/r{i}": {"added_at": "2026-01-01 00:00:00", "last_tag": "v1.0", "assets": []}
+            for i in range(1, n + 1)}}
+
+    def run_screen(self, n, key):
+        """返回 (送进循环的目标数, 页面文本)；key 是弹窗上的按键，None 表示不该有弹窗。"""
+        seen = {"count": None, "text": ""}
+
+        def fake_iter(targets, token):
+            seen["count"] = len(targets)
+            return iter(())
+
+        async def go():
+            app = tui.GHReleaseApp("", "无")
+            app.store = self.store(n)
+            with patch.object(tui.fc, "iter_favorite_repos", fake_iter), \
+                 patch.object(tui.fav, "save", lambda store: None), \
+                 patch.object(tui.su, "check_self_update", return_value=(False, {})):
+                async with app.run_test(size=(120, 40)) as pilot:
+                    await pilot.pause()
+                    app.push_screen(tui.CheckUpdatesScreen(app))
+                    for _ in range(4):
+                        await pilot.pause()
+                    top = type(app.screen_stack[-1]).__name__
+                    assert (top == "ConfirmDialog") == (key is not None), top
+                    if key:
+                        await pilot.press(key)
+                        for _ in range(6):
+                            await pilot.pause()
+                    screen = next(s for s in app.screen_stack if isinstance(s, tui.CheckUpdatesScreen))
+                    seen["text"] = str(screen.query_one("#lines", Static).renderable)
+
+        asyncio.run(go())
+        return seen["count"], seen["text"]
+
+    def test_over_30_declined_checks_only_first_30(self):
+        count, _text = self.run_screen(35, "n")
+        self.assertEqual(count, 30)
+
+    def test_over_30_accepted_checks_all(self):
+        count, _text = self.run_screen(35, "y")
+        self.assertEqual(count, 35)
+
+    def test_over_40_without_token_sends_no_request(self):
+        count, text = self.run_screen(41, None)
+        self.assertEqual(count, None, "拒绝路径不该进限流循环")
+        self.assertIn("未配置 Token 时最多检查 40 个", text)
+        self.assertIn("按 5 配置 Token", text)
+
+    def test_small_batch_asks_nothing(self):
+        count, _text = self.run_screen(3, None)
+        self.assertEqual(count, 3)
+
+
 if __name__ == "__main__":
     unittest.main()

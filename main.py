@@ -6,7 +6,9 @@
     python main.py files-community/Files   直接跳到该仓库的 Release
     python main.py files           先搜索再选编号
 
-菜单五项：1 搜索仓库 / 2 查看收藏 / 3 添加收藏 / 4 退出 / 5 检查更新。
+菜单：1 搜索仓库 / 2 查看收藏 / 3 添加收藏 / 4 检查更新 / 5 配置 Token / 0 退出。
+键位与全屏 TUI（tui.py 的 MENU）保持一致——用户在两种界面里按同一个数字，
+必须得到同一个功能。
 """
 
 from __future__ import annotations
@@ -61,7 +63,7 @@ def pick_token(cli_token: str) -> tuple[str, str]:
 def token_state(token: str) -> str:
     """主界面 Token 状态；依赖本模块的 token_source，故实现留在此处。"""
     if not token:
-        return ui.c("未配置（限流 60 次/小时）· 按 0 配一个", ui.RED)
+        return ui.c("未配置（限流 60 次/小时）· 按 5 配一个", ui.RED)
     return ui.c(f"已配置 · {token_source}", ui.GREEN)
 
 
@@ -553,59 +555,42 @@ def flow_add_favorite(store: dict, token: str) -> None:
 
 
 def flow_check_updates(store: dict, token: str) -> None:
-    """5 检查更新：批量查询收藏仓库的最新 Release，汇总后回写 tag 与资产缓存。
+    """4 检查更新：批量查询收藏仓库的最新 Release，汇总后回写 tag 与资产缓存。
 
-    限流保护分三层：无 Token 超过 40 个直接拒绝；超过 30 个先确认；
-    请求前查剩余配额、遇 403/429 立即停批。全程顺序请求，间隔 0.5 秒。
+    裁剪与限流都和 TUI 共用 flow_common：plan_favorite_check 决定拒绝/确认/直接查，
+    iter_favorite_repos 负责进循环前查一次配额后本地递减、0.5 秒间隔、遇 403/429 停批。
 
     开头先检查本程序自身版本（失败只提示、不阻塞下面的收藏检查）。
     """
     su.run(token)
 
     items = fav.entries(store)
-    total = len(items)
-    if not total:
+    if not items:
         print(ui.c("\n  收藏夹还是空的，先用菜单 3 添加一个常用仓库吧。", ui.YELLOW))
         return
 
-    if not token and total > 40:
-        print(ui.c("\n  未配置 Token 时最多检查 40 个，按 0 配置 Token 后重试。", ui.YELLOW))
+    targets, action, notice = fc.plan_favorite_check(items, token)
+    if action == "refuse":
+        print(ui.c(f"\n  {notice}", ui.YELLOW))
         return
-
-    targets = items
-    if total > 30:
-        if not ui.confirm(f"共 {total} 个仓库，全部检查？(Y/N)", default=False):
-            targets = items[:30]
-            print(ui.c(f"  已只取前 {len(targets)} 个检查。", ui.DIM))
+    if action == "confirm" and not ui.confirm(f"{notice}(Y/N)", default=False):
+        targets = targets[:fc.CONFIRM_ABOVE]
+        print(ui.c(f"  已只取前 {len(targets)} 个检查。", ui.DIM))
 
     rows: list[list[str]] = []
     pending: list[tuple[str, str, list[dict]]] = []
     notice = ""
 
-    for index, (key, meta) in enumerate(targets):
-        if index:
-            time.sleep(0.5)
-
-        # /rate_limit 本身不计费；查询失败就跳过预检，不让增强项挡住主流程
-        try:
-            quota = gh.rate_limit_status(token)
-        except gh.GitHubError:
-            quota = {}
-        limit = int(quota.get("limit", 0) or 0)
-        remaining = int(quota.get("remaining", 0) or 0)
-        if limit > 0 and remaining < 3:
+    for index, key, meta, release, exc, stop in fc.iter_favorite_repos(targets, token):
+        if stop == "insufficient-quota":
             notice = ui.c(
-                f"\n  API 剩余配额不足 3 次（当前剩余 {remaining} 次），已提前停止。"
-                "配置 Token 或稍后再试。",
+                "\n  API 剩余配额不足 3 次，已提前停止。配置 Token 或稍后再试。",
                 ui.YELLOW,
             )
             break
-
         last_tag = str(meta.get("last_tag") or "")
-        try:
-            release = gh.get_latest_release_or_explain(key, token)
-        except gh.GitHubError as exc:
-            if isinstance(exc, gh.RateLimitedError) or getattr(exc, "status_code", None) in (403, 429):
+        if exc is not None:
+            if stop == "rate-limited":
                 left = len(targets) - index - 1
                 notice = ui.c(
                     f"\n  已触发限流，剩余 {left} 个未检查。配置 Token 或稍后再试。",
@@ -652,18 +637,19 @@ MENU_ITEMS = [
     ("1", "搜索仓库", "按名字找项目，选编号看 Release 资产并下载"),
     ("2", "查看收藏", "调出已存仓库的下载链接，支持直接下载"),
     ("3", "添加收藏", "把常用仓库存进 favorites.json"),
-    ("4", "退出", "保存收藏并退出"),
-    ("5", "检查更新", "检查本程序更新，并批量检查收藏仓库的最新 Release"),
+    ("4", "检查更新", "检查本程序更新，并批量检查收藏仓库的最新 Release"),
 ]
 
-# 五大流程之外的辅助项：不占编号 1-5，也不参与 dispatch()
+# 业务流程之外的辅助项：由主循环直接处理，不进 dispatch()。
+# 编号必须和 tui.py 的 MENU 对齐：5 配置 Token、0 退出。
 SUPPORT_ITEMS = [
-    ("0", "配置 Token", "打开 GitHub Token 页面，粘贴后存本地 .github_token，解除限流"),
+    ("5", "配置 Token", "打开 GitHub Token 页面，粘贴后存本地 .github_token，解除限流"),
+    ("0", "退出", "保存收藏并退出"),
 ]
 
 
 def render_menu(store: dict, token: str, notice: str = "") -> None:
-    """画主菜单：1-5 是五大流程，0 是辅助的 Token 配置。
+    """画主菜单：1-4 是四大流程，5 配 Token、0 退出（与全屏 TUI 同一套键位）。
 
     notice 是上一条错误/提示，清屏后原样贴回，避免报错一闪而过。
     """
@@ -685,10 +671,11 @@ def render_menu(store: dict, token: str, notice: str = "") -> None:
 
 
 def dispatch(choice: str, store: dict, token: str) -> str:
-    """把菜单编号分发到对应流程，返回 exit / pause / again 三种后续动作。
+    """把菜单编号分发到对应流程，返回 pause / again 两种后续动作。
 
     again 表示「只要重画菜单，不用多按一次回车」；要不要提示、提示什么，
     由主循环决定——因为它手上的 notice 才能在清屏后活下来。
+    退出（0）和配 Token（5）是辅助项，不进这里。
     """
     if choice == "1":
         flow_search(store, token)
@@ -696,10 +683,8 @@ def dispatch(choice: str, store: dict, token: str) -> str:
         flow_favorites(store, token)
     elif choice == "3":
         flow_add_favorite(store, token)
-    elif choice == "5":
-        flow_check_updates(store, token)
     elif choice == "4":
-        return "exit"
+        flow_check_updates(store, token)
     else:
         return "again"
     return "pause"
@@ -775,21 +760,21 @@ def main() -> int:
                 print()
                 break
             try:
-                if choice == "0":
+                if choice == "5":
                     # Token 是运行时才知道的东西，配好之后本次运行立刻换上，不用重启
                     new_token = configure_token()
                     if new_token:
                         token, token_source = new_token, "本地 .github_token"
                         notice = ui.c("  ✔ Token 已生效，限额从 60 次/小时提升到 5000 次/小时。", ui.GREEN)
                     ui.ask(ui.c("\n  回车返回主菜单 ...", ui.GREY))
+                elif choice == "0":
+                    break
                 else:
                     action = dispatch(choice, store, token)
-                    if action == "exit":
-                        break
                     if action == "again":
                         # 重画菜单即可，不用多按一次回车；直接回车不配挨一句"无效选项"
                         if choice:
-                            notice = ui.c("  ⚠ 无效选项，请输入 1-5（0 配置 Token）。", ui.YELLOW)
+                            notice = ui.c("  ⚠ 无效选项，请输入 1-5（0 退出）。", ui.YELLOW)
                     elif action == "pause":
                         ui.ask(ui.c("\n  回车返回主菜单 ...", ui.GREY))
             except ui.UserQuit:

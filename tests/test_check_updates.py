@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""菜单 5「检查更新」的流程测试：限流保护、确认裁剪、表格输出与回写。
+"""「检查更新」（菜单 4 / TUI 同名页）的流程测试：限流保护、确认裁剪、表格输出与回写。
 
 全程不联网、不写真实配置：Release/配额/延时/确认都换成假实现，
 收藏落到临时目录。沿用其它测试文件的 addCleanup(setattr, ...) 风格。
@@ -83,7 +83,7 @@ class CheckUpdatesTest(unittest.TestCase):
         return buf.getvalue()
 
     def test_menu_item_and_dispatch(self):
-        self.assertIn(("5", "检查更新", "检查本程序更新，并批量检查收藏仓库的最新 Release"), app.MENU_ITEMS)
+        self.assertIn(("4", "检查更新", "检查本程序更新，并批量检查收藏仓库的最新 Release"), app.MENU_ITEMS)
         calls = []
         original = app.flow_check_updates
 
@@ -93,12 +93,12 @@ class CheckUpdatesTest(unittest.TestCase):
         app.flow_check_updates = stub
         self.addCleanup(setattr, app, "flow_check_updates", original)
         store = make_store(1)
-        self.assertEqual(app.dispatch("5", store, "tok"), "pause")
+        self.assertEqual(app.dispatch("4", store, "tok"), "pause")
         self.assertEqual(calls, [(store, "tok")])
 
     def test_no_token_over_40_refuses_before_any_request(self):
         out = self.run_flow(make_store(41), token="")
-        self.assertIn("未配置 Token 时最多检查 40 个，按 0 配置 Token 后重试", out)
+        self.assertIn("未配置 Token 时最多检查 40 个（共 41 个），按 5 配置 Token 后重试", out)
         self.assertEqual(self.checked, [])
         self.assertEqual(self.quota_calls, 0)
 
@@ -151,7 +151,7 @@ class CheckUpdatesTest(unittest.TestCase):
 
         self.assertEqual(len(self.sleeps), 1)   # 两次请求之间只睡一次
         self.assertEqual(self.sleeps[0], 0.5)
-        self.assertEqual(self.quota_calls, 2)   # 每个请求前查一次配额
+        self.assertEqual(self.quota_calls, 1)   # 配额在进循环前查一次，循环内本地递减
 
     def test_429_stops_batch_and_reports_remaining(self):
         store = make_store(5)
@@ -219,6 +219,40 @@ class SelfUpdateIntegrationTest(CheckUpdatesTest):
         self.run_flow(make_store(2), token="tok")
         self.assertEqual(self.self_checks, ["tok"])
         self.assertEqual(len(self.checked), 2)
+
+
+class PlanFavoriteCheckTest(unittest.TestCase):
+    """裁剪规则的唯一真相源：CLI 菜单与 TUI 都必须走它，两条界面结果要一致。"""
+
+    def plan(self, n, token=""):
+        entries = list(app.fav.entries(make_store(n)))
+        return app.fc.plan_favorite_check(entries, token)
+
+    def test_small_batch_runs_directly(self):
+        targets, action, notice = self.plan(10)
+        self.assertEqual((action, notice), ("run", ""))
+        self.assertEqual(len(targets), 10)
+
+    def test_over_30_needs_confirm_even_for_anonymous(self):
+        targets, action, notice = self.plan(31, token="")
+        self.assertEqual(action, "confirm")
+        self.assertIn("共 31 个仓库，全部检查？", notice)
+        self.assertEqual(len(targets), 31)
+
+    def test_over_40_without_token_refuses(self):
+        targets, action, notice = self.plan(41, token="")
+        self.assertEqual(action, "refuse")
+        self.assertEqual(targets, [])
+        self.assertIn("最多检查 40 个", notice)
+        self.assertIn("按 5 配置 Token", notice)
+
+    def test_with_token_40_is_not_a_refuse_anymore(self):
+        _targets, action, _notice = self.plan(41, token="ghp_x")
+        self.assertEqual(action, "confirm")
+
+    def test_empty_favorites_is_not_a_special_case(self):
+        targets, action, notice = self.plan(0)
+        self.assertEqual((targets, action, notice), ([], "run", ""))
 
 
 if __name__ == "__main__":

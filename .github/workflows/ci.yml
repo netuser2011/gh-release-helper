@@ -33,8 +33,9 @@ jobs:
       # 语法兼容性检查：3.10 上能编译，就不会出现「本地跑得好、用户打不开」
       - name: 编译所有模块
         run: >
-          python -m py_compile main.py cli.py github_api.py downloader.py
-          favorites.py ui.py bootstrap.py
+          python -m py_compile main.py cli.py tui.py flow_common.py self_update.py
+          post_download.py pager.py github_api.py downloader.py version.py
+          favorites.py ui.py syscert.py bootstrap.py
 
       - name: 跑测试（全程离线，不打 GitHub API）
         run: python -m unittest discover -s tests -v
@@ -70,7 +71,8 @@ jobs:
         run: |
           Remove-Item Env:PYTHONUTF8 -ErrorAction SilentlyContinue
           Remove-Item Env:PYTHONIOENCODING -ErrorAction SilentlyContinue
-          "4" | python main.py
+          # 0 是退出键（与全屏 TUI 同一套编号）；这里不能喂 1-4，那会真去跑流程
+          "0" | python main.py
           if ($LASTEXITCODE -ne 0) {
             Write-Host "main.py 退出码 $LASTEXITCODE，控制台输出编码的问题又回来了"
             exit 1

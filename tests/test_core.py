@@ -157,7 +157,7 @@ class RequestErrorTest(unittest.TestCase):
         # 光说「去配 Token」不够，得把能直接点开的地址一起给出来
         self.assertIn(gh.TOKEN_CREATE_URL, message)
         self.assertIn("scopes=public_repo", message)
-        self.assertIn("菜单里按 0", message)
+        self.assertIn("菜单里按 5", message)
 
     def test_bad_token_is_not_reported_as_rate_limit(self):
         patch_get(self, resp=FakeResponse(401, {"message": "Bad credentials"}))

@@ -4,7 +4,7 @@
 
 两条更新路径都落到同一个文件：
 - 从 GitHub Release 手动装新包 → 新包自带的 version.txt 覆盖旧文件；
-- 终端按 5 自动更新 → self_update.py 在装好后调用 write_current() 写回。
+- 菜单 4「检查更新」自动升级 → self_update.py 在装好后调用 write_current() 写回。
 
 文件相对本模块解析，兼容源码运行与 PyInstaller 打包后的目录布局。
 缺失或损坏时返回 V0.0.0：任何真实 Release 都比它新，会稳定提示一次更新，

@@ -130,7 +130,7 @@ def request_json(url: str, params: dict | None = None, token: str = "") -> tuple
             f"API 调用已达上限：{msg}。额度重置时间戳：{reset_hint or '未知'}\n"
             "      配一个 Token 可把限额从 60 次/小时提升到 5000 次/小时：\n"
             f"      {TOKEN_CREATE_URL}\n"
-            "      菜单里按 0 可以直接打开这个页面并粘贴保存。",
+            "      菜单里按 5 可以直接打开这个页面并粘贴保存。",
             resp.status_code,
         )
     if resp.status_code in (401, 403):

@@ -41,8 +41,8 @@ MENU = [
 ]
 
 # 常见安装包类型，按此顺序优先展示；其余按出现频次排在后面。
-TYPE_ORDER = ["zip", "exe", "tar", "gz", "apk", "dmg", "pkg", "deb", "rpm", "msi",
-              "mas", "kmassix", "7z", "rar", "iso", "bin", "AppImage"]
+TYPE_ORDER = ["zip", "exe", "msi", "tar", "gz", "7z", "rar", "iso", "apk", "dmg",
+              "pkg", "deb", "rpm", "bin", "AppImage"]
 
 
 def type_groups(assets: list[dict]) -> list[tuple[str, list[dict]]]:
@@ -861,10 +861,21 @@ class CheckUpdatesScreen(BaseScreen):
                 yield Static("", id="lines")
 
     def on_mount(self) -> None:
-        self.do_check()
+        asyncio.create_task(self.start_check())
+
+    async def start_check(self) -> None:
+        """裁剪规则与 CLI 完全一致：该拒的直接拒、该问的弹窗问，不问就只查前 30 个。
+
+        确认必须发生在主线程，所以这里先把目标算好，再把结果交给后台线程去跑请求。
+        """
+        entries = fav.entries(self.host_app.store)
+        targets, action, notice = fc.plan_favorite_check(entries, self.host_app.token)
+        if action == "confirm" and not await self.host_app.confirm(f"{notice}？", default=False):
+            targets = targets[:fc.CONFIRM_ABOVE]
+        self.do_check(entries, targets, action, notice)
 
     @work(thread=True)
-    def do_check(self) -> None:
+    def do_check(self, entries: list, targets: list, action: str, notice: str) -> None:
         lines: list[str] = []
 
         # 本程序：只检查版本，弹窗下载放到主线程 show_lines 里做
@@ -880,25 +891,31 @@ class CheckUpdatesScreen(BaseScreen):
         except Exception as exc:  # noqa: BLE001  自身检查不能挡住收藏检查
             lines.append(f"[yellow]本程序检查失败：{exc}[/]")
 
-        # 收藏仓库
-        entries = fav.entries(self.host_app.store)
+        # 收藏仓库：目标由 start_check 按 flow_common 的规则算好，这里只负责跑
         if not entries:
             lines.append("收藏夹是空的，跳过收藏检查。")
+        elif action == "refuse":
+            lines.append(notice)
         else:
-            for key, meta in entries:
-                try:
-                    release = gh.get_latest_release_or_explain(key, self.host_app.token)
-                    tag = release.get("tag_name") or "-"
-                    last = meta.get("last_tag") or "-"
-                    state = "↑ 新版本" if last != "-" and last != tag else "— 无变化"
-                    lines.append(f"{key}：{last} → {tag}  {state}")
-                    fav.update_release(self.host_app.store, key, tag, [
-                        {"name": a.get("name", ""), "size": int(a.get("size", 0) or 0),
-                         "url": a.get("browser_download_url", "")}
-                        for a in gh.release_assets(release)
-                    ])
-                except gh.GitHubError as exc:
-                    lines.append(f"{key}：查询失败（{exc}）")
+            for _index, key, meta, release, exc, stop in fc.iter_favorite_repos(targets, self.host_app.token):
+                if stop == "insufficient-quota":
+                    lines.append("API 剩余配额不足 3 次，已提前停止。配置 Token 或稍后再试。")
+                    break
+                last = str(meta.get("last_tag") or "-")
+                if exc is not None:
+                    if stop == "rate-limited":
+                        lines.append("已触发限流，停止检查。配置 Token 或稍后再试。")
+                        break
+                    lines.append(f"{key}：查询失败（{' '.join(str(exc).split())[:40]}）")
+                    continue
+                tag = str(release.get("tag_name") or "-")
+                state = "↑ 新版本" if last != "-" and last != tag else "— 无变化"
+                lines.append(f"{key}：{last} → {tag}  {state}")
+                fav.update_release(self.host_app.store, key, tag, [
+                    {"name": a.get("name", ""), "size": int(a.get("size", 0) or 0),
+                     "url": a.get("browser_download_url", "")}
+                    for a in gh.release_assets(release)
+                ])
             fav.save(self.host_app.store)
 
         self.app.call_from_thread(self.show_lines, lines)
@@ -912,10 +929,11 @@ class CheckUpdatesScreen(BaseScreen):
     async def offer_self_update(self) -> None:
         release = self.self_release
         self.self_release = None
-        assets = gh.release_assets(release)
-        setup = next((a for a in assets if gh.asset_ext(a.get("name", "")) == "exe"), None)
-        if not setup:
+        # 与 CLI 同一选型：优先 Setup.exe，没有 exe 用 zip 兜底（解压由下载后处理负责）
+        picked = su.pick_installer(release)
+        if not picked:
             return
+        setup, _kind = picked
         if await self.host_app.confirm("发现本程序新版本，是否下载安装包？", default=True):
             self.app.set_notice("正在下载新版本安装包 ...")
             await self.host_app.run_download("self", setup)

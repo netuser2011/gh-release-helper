@@ -115,7 +115,7 @@ class MenuLoopTest(unittest.TestCase):
 
     def test_api_error_survives_the_menu_redraw(self):
         app.flow_search = self.fail_with("模拟：仓库不存在或无权访问")
-        code, screens, leftover = self.drive(["1", "4"])
+        code, screens, leftover = self.drive(["1", "0"])
         self.assertEqual(code, 0)
         self.assertEqual(leftover, [], "报错之后不该再额外吃掉一次回车")
         last = screens[-1]
@@ -125,7 +125,7 @@ class MenuLoopTest(unittest.TestCase):
     def test_old_error_is_replaced_not_stacked(self):
         app.flow_search = self.fail_with("模拟：限流")
         app.flow_add_favorite = self.fail_with("模拟：网络中断")
-        code, screens, leftover = self.drive(["1", "3", "4"])
+        code, screens, leftover = self.drive(["1", "3", "0"])
         self.assertEqual(code, 0)
         last = screens[-1]
         self.assertIn("模拟：网络中断", last)
@@ -139,20 +139,20 @@ class MenuLoopTest(unittest.TestCase):
 
         app.flow_favorites = ok
         # 成功的流程会走「回车返回主菜单」，所以这里要多喂一次回车
-        code, screens, leftover = self.drive(["1", "2", "", "4"])
+        code, screens, leftover = self.drive(["1", "2", "", "0"])
         self.assertEqual(code, 0)
         self.assertEqual(leftover, [])
         self.assertIn("模拟：限流", screens[1 + 1])
         self.assertNotIn("模拟：限流", screens[-1])
 
     def test_invalid_option_is_reported_without_an_extra_enter(self):
-        code, screens, leftover = self.drive(["7", "4"])
+        code, screens, leftover = self.drive(["7", "0"])
         self.assertEqual(code, 0)
         self.assertEqual(leftover, [], "无效选项只重画菜单，不该多等一次按键")
         self.assertIn("无效选项", screens[-1])
 
     def test_bare_enter_just_refreshes_the_menu(self):
-        code, screens, _ = self.drive(["", "4"])
+        code, screens, _ = self.drive(["", "0"])
         self.assertEqual(code, 0)
         self.assertNotIn("无效选项", screens[-1])
 
@@ -161,30 +161,30 @@ class MenuLoopTest(unittest.TestCase):
             raise ui.UserQuit
 
         app.flow_search = cancel
-        code, screens, leftover = self.drive(["1", "4"])
+        code, screens, leftover = self.drive(["1", "0"])
         self.assertEqual(code, 0)
         self.assertIn("已取消", screens[-1])
 
     def test_flow_errors_do_not_trigger_the_enter_prompt(self):
         app.flow_search = self.fail_with("模拟：限流")
-        code, screens, _ = self.drive(["1", "4"])
+        code, screens, _ = self.drive(["1", "0"])
         self.assertEqual(code, 0)
         self.assertIn("模拟：限流", screens[-1])
         self.assertNotIn(ENTER_TO_CONTINUE, "".join(self.prompts),
                          "报错靠 notice 留住，不该再多按一次回车；也没让错误被下一次清屏抹掉")
 
     def test_menu_tells_you_the_token_shortcut(self):
-        """没配 Token 时，菜单状态行要直接指向 0，而不是让人去翻文档。"""
+        """没配 Token 时，菜单状态行要直接指向 5，而不是让人去翻文档。"""
         self.addCleanup(setattr, app, "configure_token", app.configure_token)
         app.configure_token = lambda: ""
-        code, screens, _ = self.drive(["0", "", "4"])
+        code, screens, _ = self.drive(["5", "", "0"])
         self.assertEqual(code, 0)
-        self.assertIn("按 0 配一个", screens[1])
+        self.assertIn("按 5 配一个", screens[1])
         self.assertIn("配置 Token", screens[1])
 
 
 class TokenShortcutLoopTest(unittest.TestCase):
-    """菜单 0：配好 Token 后本次运行立刻生效，提示还得活过下一次清屏。"""
+    """菜单 5：配好 Token 后本次运行立刻生效，提示还得活过下一次清屏。"""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -229,16 +229,16 @@ class TokenShortcutLoopTest(unittest.TestCase):
         return buf.getvalue().split("<<<CLEAR>>>"), recorded
 
     def test_new_token_applies_to_this_run_and_survives_redraw(self):
-        screens, recorded = self.drive("ghp_whatever", ["0", "", "4"])
+        screens, recorded = self.drive("ghp_whatever", ["5", "", "0"])
         self.assertEqual(recorded, [1])
         self.assertIn("Token 已生效", screens[-1])
         self.assertIn("已配置", screens[-1], "状态行要从「未配置」翻成「已配置」")
-        self.assertNotIn("按 0 配一个", screens[-1])
+        self.assertNotIn("按 5 配一个", screens[-1])
 
     def test_cancelling_keeps_anonymous_state(self):
-        screens, _ = self.drive("", ["0", "", "4"])
+        screens, _ = self.drive("", ["5", "", "0"])
         self.assertNotIn("Token 已生效", screens[-1])
-        self.assertIn("按 0 配一个", screens[-1])
+        self.assertIn("按 5 配一个", screens[-1])
 
 
 class ConfigureTokenFlowTest(unittest.TestCase):
