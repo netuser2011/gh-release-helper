@@ -17,6 +17,9 @@ import traceback
 
 MIN_PYTHON = (3, 10)
 
+# 与 requirements.txt 保持一致；缺任意一个都启动不了（textual 是 TUI 核心）
+REQUIRED_MODULES = ("requests", "httpx", "textual", "truststore")
+
 
 def _crash_log_path():
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "crash.log")
@@ -56,25 +59,31 @@ def fatal_exit(message, err=None, code=1):
 
 
 def ensure_runtime():
-    """检查 Python 版本与 requests，通过后把 requests 模块返回给调用方。"""
+    """检查 Python 版本与 requirements.txt 的四个第三方依赖，通过则返回 requests 模块。"""
     if sys.version_info < MIN_PYTHON:
         fatal_exit(
             "需要 Python %d.%d 或更高版本，当前是 %s。\n"
             "升级 Python 后再运行即可，代码本身没有问题。"
             % (MIN_PYTHON[0], MIN_PYTHON[1], sys.version.split()[0])
         )
-    try:
-        import requests
-    except ImportError as err:
+    missing = []
+    for module in REQUIRED_MODULES:
+        try:
+            __import__(module)
+        except ImportError as err:
+            missing.append(module)
+    if missing:
         hint = ""
-        if getattr(err, "name", None) == "ssl":
-            hint = "\n（Python 自带的 OpenSSL / _ssl 没编译好，属于装 Python 时的问题，重装一次官方安装包通常就好。）"
+        if "requests" in missing:
+            # 顺带覆盖「Python 自带 _ssl 编译坏了导致 requests 装不上」这种
+            hint = "\n（若安装时报 _ssl / OpenSSL 缺失，属于装 Python 时的问题，重装一次官方安装包通常就好。）"
         fatal_exit(
-            "缺少第三方依赖 requests，请先执行：pip install -r requirements.txt\n"
-            "如果本机装了多个 Python，用这条更稳：python -m pip install requests\n"
-            "双击 Run.bat 会在首次运行时自动执行上面这条；手动运行请先确认它装成功了。" + hint,
-            err,
+            "缺少第三方依赖：%s\n请先执行：pip install -r requirements.txt\n"
+            "如果本机装了多个 Python，用这条更稳：python -m pip install -r requirements.txt\n"
+            "双击 Run.bat 会在首次运行时自动执行上面这条；手动运行请先确认它装成功了。"
+            + hint,
         )
+    import requests
     # 让 requests / httpx 信任系统证书：Watt Toolkit 等代理工具的根证书装在系统里，
     # certifi 不认会报 SSL 错误。truststore 注入失败也不影响运行，所以顺带做。
     try:
