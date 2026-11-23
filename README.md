@@ -6,6 +6,8 @@
 
 [🌐 打开官网](https://netuser2011.github.io/gh-release-helper/)
 
+[![CI](https://github.com/netuser2011/gh-release-helper/actions/workflows/ci.yml/badge.svg)](https://github.com/netuser2011/gh-release-helper/actions/workflows/ci.yml)
+
 配套文档：[更新日志](CHANGELOG.md) · [参与贡献](CONTRIBUTING.md) · [安全说明](SECURITY.md) · [发布步骤](PUBLISHING.md)
 
 ```
