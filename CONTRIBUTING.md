@@ -14,15 +14,15 @@ python main.py                              # 进入交互菜单
 - Python 3.10+（`.github/workflows/ci.yml` 会在 3.10 / 3.11 / 3.12 / 3.13 上各跑一遍，
   本地请用 3.10 验一次语法兼容性）。
 - 共四个第三方依赖：`requests`（GitHub REST API 读接口）、`httpx`（下载 / 测速，
-  asyncio 并发）、`rich`（表格 / 横幅 / 进度条 / Markdown 翻页）、`truststore`
+  asyncio 并发）、`textual`（全屏 TUI，内部依赖 `rich`）、`truststore`
   （把系统已受信任的 CA 注入 ssl，等效浏览器证书基线）。
-- 无需任何 GUI 框架。界面统一走 `rich`，不要另外引入 `colorama` / `tqdm` /
-  `urwid` 之类的渲染或进度条依赖。
+- 无需任何 GUI 框架。界面统一走 `textual`（全屏）+ `rich`（表格 / 横幅 / 进度条），
+  不要另外引入 `colorama` / `tqdm` / `urwid` 之类的渲染或进度条依赖。
 
 ## 跑测试
 
 ```bash
-python -m unittest discover -s tests          # 全量，约 2.3 秒，214 个用例
+python -m unittest discover -s tests          # 全量，272 个用例
 python -m unittest tests.test_ui -v           # 只跑一个文件
 python -m unittest tests.test_core.DownloadTest.test_bytes_land_in_one_file
 ```
@@ -56,11 +56,13 @@ python -m unittest tests.test_core.DownloadTest.test_bytes_land_in_one_file
 
 ## 加功能时
 
-- **新菜单项**：改 `main.py` 的 `MENU_ITEMS` 与 `dispatch()`，别忘了 `dispatch` 的返回值
-  只有 `exit` / `pause` / `again` 三种语义。主菜单会清屏重画，所以任何需要用户读完的信息
+- **新菜单项**：`main.py` 的 `MENU_ITEMS` 与 `dispatch()`、`tui.py` 的 `MENU` **必须一起改**，
+  同一个编号在两种界面里要干同一件事（历史坑：TUI 是 4 检查更新 / 5 配 Token / 0 退出，
+  降级菜单一度是 4 退出 / 5 检查更新 / 0 配 Token，文档怎么写都错一半）。`dispatch` 的返回值
+  只有 `pause` / `again` 两种语义。主菜单会清屏重画，所以任何需要用户读完的信息
   都要走 `notice`，不能只 `print`。
-- **1-4 是四大业务流程，别往里塞别的**：辅助功能放在 `SUPPORT_ITEMS`（现在只有 `0`
-  配置 Token），在主循环里单独分支处理，不进 `dispatch()`。这样 README 里承诺的
+- **1-4 是四大业务流程，别往里塞别的**：辅助功能放在 `SUPPORT_ITEMS`（`5` 配置 Token、
+  `0` 退出），在主循环里单独分支处理，不进 `dispatch()`。这样 README 里承诺的
   「四大菜单项」和实际界面一直对得上。
 - **新的下载方式**：改 `do_download()` 里的选项表，具体落盘逻辑放 `downloader.py`，
   界面层不碰 HTTP。
@@ -70,7 +72,7 @@ python -m unittest tests.test_core.DownloadTest.test_bytes_land_in_one_file
 ## 提 PR 之前
 
 ```bash
-python -m py_compile main.py cli.py github_api.py downloader.py favorites.py ui.py bootstrap.py
+python -m py_compile main.py cli.py tui.py flow_common.py self_update.py post_download.py pager.py github_api.py downloader.py version.py favorites.py ui.py syscert.py bootstrap.py
 python -m unittest discover -s tests
 ```
 

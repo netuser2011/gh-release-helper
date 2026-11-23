@@ -3,14 +3,44 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [1.3.1] - 2026-11-24
+
+### 变更
+
+- **两种界面的菜单编号统一**：`GHR_NO_TUI` / 管道 / CI 下的文本菜单此前是「4 退出、5 检查更新、0 配置 Token」，与全屏 TUI 的「4 检查更新、5 配置 Token、0 退出」互相打架——同一个数字在两个界面干不同的事。现在两套界面同一个数字做同一件事，状态行、限流提示、Token 引导里的「按 0 配 Token」一律改成按 5，CI 的 Windows 冒烟也随之改喂 `0`。
+- 资产类型的优先展示表去掉 `mas` / `kmassix` 两个实际不存在的后缀；没列到的后缀仍按数量排在常见类型之后，筛选行为不变。
+
+### 改进
+
+- **启动依赖检查对齐 requirements.txt**：`bootstrap` 现在检查 requests / httpx / textual / truststore 四个依赖，缺哪个报哪个，不再进菜单后才发现缺库。
+- **批量检查配额的预检只查一次**：`/rate_limit` 在进入循环前查一次、循环内本地递减，不再每个仓库各打一次（行为不变，少一半网络往返）。
+
+### 修复
+
+- 修复开着代理工具时下载全线失败：代理工具常把 IPv6 字面量（`[::1]`、`::1`）写进 `NO_PROXY`，而 httpx 0.28 会把每一项当 URL 解析并抛 `InvalidURL: Invalid port`，导致线路测速和终端下载一个都跑不起来。现在构造 httpx 客户端的期间临时清洗 `NO_PROXY`，构造完立刻还原环境变量，`requests` 那条路径不受影响。
+- 修复 TUI「检查更新」遇到大量收藏时静默裁剪的问题：未配 Token 超过 40 个原本一声不响地只查前 40、超过 30 个不问就砍到 30，与 CLI 菜单「直接拒绝 / 先问一句」的行为不一致。现在两条界面共用 `flow_common.plan_favorite_check`，拒绝条件、确认弹窗与提示文案完全一致（确认必须发生在主线程，所以 TUI 改为先算目标再起后台请求）。
+- 修复发布产物不可复现：`GHDownloader.spec` 此前是单文件打包、既不带 `version.txt` 也与实际发布的 onedir 目录布局不符（照着它打包会得到 `_internal` 里缺版本文件、程序自认 `V0.0.0`、永远提示有更新的包）。现在只保留一份与线上产物一致的 spec，并删掉遗留的 `ghfind.spec`。
+- 修复三个受版本控制的文件写死本机用户名与桌面路径（`GHDownloader.spec` 的图标、`ghfind.spec` 的图标、`setup.iss` 的打包源目录）：一律改成相对仓库根目录的路径，换机器不用改任何文件；`PUBLISHING.md` 第 0 步那条「不能写死本机用户名」的自检此前漏了 `*.spec` / `*.iss`，一并补上。
+- 修复 TUI「检查更新」没有限流保护的问题：无 Token 40 个上限、有 Token 30 个裁剪、0.5 秒间隔、低配额提前停止、403/429 停批现在与 CLI 菜单共用 `flow_common.iter_favorite_repos`，两条路径同一套保护。
+- 修复并发测速 `probe_lines` 超时/异常路径：`done` 中带异常的任务不再裸 `result()` 抛穿下载流程（转成该线路的「测速异常」明细），未完成任务的取消也等到 `asyncio.wait` 收尾，不再留「Task was destroyed」告警。
+- 修复资产文件名命中 Windows 保留设备名（CON / NUL / COM1 等）时 `open()` 直接失败的问题：净化后的名字带这些保留名时自动加下划线。
+- 修复 TUI 自更新只认 exe 的问题：现在与 CLI 共用 `self_update.pick_installer`，没有 Setup.exe 时 zip 也能兜底。
+- 修复 `version.py` 文档字符串里残留的旧键位（「终端按 5 自动更新」）：自更新在两套界面里都挂在菜单 4「检查更新」后面。
+
+### 文档
+
+- README 按当前代码重写：补齐「程序自更新」与「两套界面同一套键位」两项能力，新增环境变量表（`GITHUB_TOKEN` / `GHR_DOWNLOAD_DIR` / `GHR_THREADS` / `GHR_NO_TUI` / `NO_COLOR` / `FORCE_COLOR` / `REQUESTS_CA_BUNDLE`）和本地文件表（含版本真相源 `version.txt`、断点续传的 `.part` / `.part.meta`、损坏收藏的 `.bak` 备份），并加上「已知限制」一节——不校验 SHA-256、从安装目录运行时无法覆盖自身、镜像线路经过第三方服务器，都写明白。
+- 隐私说明不再写「不会自动更新」：v1.3.0 起自更新是真实功能，改为写清它只在用户点「检查更新」后触发、下载与安装各需一次确认。
+- 项目结构补上 `GHDownloader.spec`、`setup.iss`、`icon.ico`、`docs/index.html`、`RELEASE_NOTES.md`，`downloader.py` 的职责描述去掉实际由 `post_download.py` 承担的下载后处理。
+- 官网新增三张功能卡（代理工具兼容、程序自更新、报错不闪退），文案与代码一致。
+- 更新日志里 v1.1.0 / v1.1.1 的发布日期按 GitHub 实际发布时间订正（原为 2025-06-15 与 2026-11-21）。
 
 ## [1.3.0] - 2026-11-22
 
 ### 新增
 
 - **Textual 全屏交互界面（TUI）**：主菜单、搜索、仓库、资产、下载、收藏、检查更新、更新说明全部改为可点击/方向键操作的全屏页面，带顶部状态行与底部键位提示；网络请求走后台 worker，界面不再卡住。
-- **按类型分组筛选资产**：Release 资产先按 ZIP / EXE / TAR / APK / MAS / KMASIX 等后缀分组，目录里只列类型，选一种类型后再列该类型下的具体文件，不再一次刷出几十条链接。
+- **按类型分组筛选资产**：Release 资产先按 ZIP / EXE / MSI / TAR / APK 等后缀分组，目录里只列类型，选一种类型后再列该类型下的具体文件，不再一次刷出几十条链接。
 - **下载方式三按钮**：「在终端下载到本地 / 用系统浏览器下载 / 只打印下载链接」三个按钮，点一下即可，不需要再输 1/2/3。
 - **下载进度与线路测速可视化**：终端下载页展示 7 条线路的测速结果与自动选中的线路，下载中用进度条 + 实时速度文本显示进度（进度走 `progress_hook` 注入，不再被全屏缓冲区吞掉）。
 - **下载后处理**：安装包（exe/msi 等）下载完成后弹窗询问是否直接运行，选是就启动安装向导；zip 下载完成后自动解压到同名文件夹，并询问是否删除压缩包。不写回本程序版本号，也不复用自更新的同步输入。
@@ -44,7 +74,7 @@
 - **truststore 信任系统证书**：用 `truststore.inject_into_ssl()` 替代手写证书导出合并，开代理不再报 SSL 错误；已设 `REQUESTS_CA_BUNDLE` 时不覆盖。
 - **downloader 重写为 asyncio + httpx**：删掉 threading/ThreadPoolExecutor/Lock，测速与分段下载改用 `asyncio.gather`；进度条交给 rich，代码量比原先少 30%。新增 `httpx` 依赖（`requests` 仍用于 GitHub API）。
 
-## [1.1.1] - 2026-11-21
+## [1.1.1] - 2026-11-19
 
 ### 新增
 
@@ -53,8 +83,9 @@
 - **便携版重新打包**：主程序由 `ghfind.exe` 更名为 `GH Downloader.exe`，
   统一使用自定义应用图标（深色终端风格 + 绿色下载箭头）。
 - **命令行下载入口**：README 与官网均提供 `wget` 一行命令直接下载安装版。
-- **Winget 分发**：已提交 `netuser2011.GHDownloader` 至 `microsoft/winget-pkgs`，
-  合并后可通过 `winget install netuser2011.GHDownloader` 安装。
+- **Winget 分发（进行中）**：向 `microsoft/winget-pkgs` 提交了 `netuser2011.GHDownloader`
+  的收录 PR（[winget-pkgs#484224](https://github.com/microsoft/winget-pkgs/pull/484224)）。
+  该 PR 已关闭、清单未合入主干，因此 **`winget install` 目前还装不到**；后续版本会重新提交。
 
 ### 改进
 
@@ -64,7 +95,7 @@
 
 ---
 
-## [1.1.0] - 2025-06-15
+## [1.1.0] - 2026-11-18
 
 ### 新增
 
@@ -198,5 +229,10 @@
 - 本机若有 HTTPS 中间人代理（SteamTools、Charles、企业网关），SSL 校验会失败，
   需要把它的根证书通过 `REQUESTS_CA_BUNDLE` 交给 requests，详见 README 常见问题。
 
-[Unreleased]: https://github.com/netuser2011/gh-release-helper/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/netuser2011/gh-release-helper/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/netuser2011/gh-release-helper/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/netuser2011/gh-release-helper/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/netuser2011/gh-release-helper/compare/v1.1.1...v1.2.0
+[1.1.1]: https://github.com/netuser2011/gh-release-helper/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/netuser2011/gh-release-helper/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/netuser2011/gh-release-helper/releases/tag/v1.0.0

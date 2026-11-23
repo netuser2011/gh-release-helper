@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GH Downloader v1.3.0 — 全屏 TUI 里搜索、筛选并一键下载 GitHub Release</title>
+<title>GH Downloader v1.3.1 — 全屏 TUI 里搜索、筛选并一键下载 GitHub Release</title>
 <meta name="description" content="跑在终端里的 GitHub Release 下载助手：全屏 TUI 交互、按后缀分组筛选资产、多线路测速与并发分段下载，下载完自动运行安装包或解压。提供 Windows 安装版与便携版，MIT 开源。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -395,7 +395,7 @@
 <header class="hero" id="top">
   <div class="container hero-grid">
     <div>
-      <div class="badge-new reveal"><span>v1.3.0</span> 全屏 TUI · 类型筛选 · 下载后处理 · MIT 开源</div>
+      <div class="badge-new reveal"><span>v1.3.1</span> 全屏 TUI · 类型筛选 · 下载后处理 · MIT 开源</div>
       <h1 class="reveal" data-d="1">
         <span class="line">只知道仓库名，</span>
         <span class="line">也能<span class="grad-text">一键下载</span></span>
@@ -403,7 +403,7 @@
       </h1>
       <p class="hero-lead reveal" data-d="2">一个跑在<strong>终端里</strong>的 GitHub 下载助手。全屏 TUI 点选操作，按后缀分组筛选资产，多线路测速后并发下载，下完自动运行安装包或解压。</p>
       <div class="hero-btns reveal" data-d="3">
-        <a class="btn btn-cta btn-lg" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.0/GHDownloader-Windows-V1.3.0-Setup.exe" download><svg class="icon"><use href="#i-download"/></svg>下载 Windows 安装版<svg class="icon"><use href="#i-arrow"/></svg></a>
+        <a class="btn btn-cta btn-lg" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.1/GHDownloader-Windows-V1.3.1-Setup.exe" download><svg class="icon"><use href="#i-download"/></svg>下载 Windows 安装版<svg class="icon"><use href="#i-arrow"/></svg></a>
         <a class="btn btn-ghost btn-lg" href="https://github.com/netuser2011/gh-release-helper" target="_blank" rel="noopener"><svg class="icon"><use href="#i-github"/></svg>在 GitHub 上查看</a>
       </div>
       <ul class="hero-meta reveal" data-d="3">
@@ -490,11 +490,14 @@
     </div>
     <div class="features-grid">
       <div class="feature reveal"><span class="f-icon"><svg class="icon"><use href="#i-search"/></svg></span><h3>全屏 TUI，点选即可</h3><p>搜索、仓库、资产、下载、收藏全部是可点击/方向键操作的全屏页面，顶部状态行、底部键位提示，网络请求放后台不卡界面。</p></div>
-      <div class="feature reveal" data-d="1"><span class="f-icon"><svg class="icon"><use href="#i-filter"/></svg></span><h3>按后缀分组筛选</h3><p>Release 资产先按 ZIP / EXE / TAR / APK / MAS / KMASIX 等后缀分组，目录里只列类型与文件数，选一种再列具体文件。</p></div>
+      <div class="feature reveal" data-d="1"><span class="f-icon"><svg class="icon"><use href="#i-filter"/></svg></span><h3>按后缀分组筛选</h3><p>Release 资产先按 ZIP / EXE / MSI / TAR / APK 等后缀分组，目录里只列类型与文件数，选一种再列具体文件。</p></div>
       <div class="feature reveal" data-d="2"><span class="f-icon"><svg class="icon"><use href="#i-zap"/></svg></span><h3>测速择优 + 并发分段</h3><p>7 条线路并发测速（排除首字节延迟），默认 8 路并发下载、512 KB 起分段；中断保留进度，被限制时自动回退单流。</p></div>
       <div class="feature reveal"><span class="f-icon"><svg class="icon"><use href="#i-package"/></svg></span><h3>下载完自动处理</h3><p>安装包（exe/msi）下完弹窗问是否直接运行，zip 自动解压并询问是否删包，不用再去文件夹里找。</p></div>
       <div class="feature reveal" data-d="1"><span class="f-icon"><svg class="icon"><use href="#i-bookmark"/></svg></span><h3>收藏可加可删</h3><p>常用的「作者/仓库」存进收藏夹，二次确认即可删除，列表与计数同步更新；重启后依然在，大小写不同也不重复。</p></div>
       <div class="feature reveal" data-d="2"><span class="f-icon"><svg class="icon"><use href="#i-link"/></svg></span><h3>链接可框选可复制</h3><p>「只打印下载链接」打开独立页面，输入框可框选复制，也有一键复制按钮与明确反馈，不再被弹窗挡住。</p></div>
+      <div class="feature reveal"><span class="f-icon"><svg class="icon"><use href="#i-globe"/></svg></span><h3>开着代理工具照样用</h3><p>启动时通过 truststore 直接信任系统证书存储，Watt Toolkit / SteamTools 的中间人证书不用再手动导出；代理塞进 NO_PROXY 的 IPv6 字面量也不会把下载打挂。</p></div>
+      <div class="feature reveal" data-d="1"><span class="f-icon"><svg class="icon"><use href="#i-check-circle"/></svg></span><h3>程序自己也能升级</h3><p>「检查更新」先看本程序有没有新版本，确认后下载安装包：安装版走静默升级，没有 exe 时便携 zip 兜底解压。每一步都要你点一下，绝不偷偷替换。</p></div>
+      <div class="feature reveal" data-d="2"><span class="f-icon"><svg class="icon"><use href="#i-info"/></svg></span><h3>报错不会一闪而过</h3><p>缺依赖、Python 版本太老、限流、SSL、下载中断，全部是中文说明；错误会留在重画后的界面顶部，未预料的崩溃落进 crash.log 并等你按键。双击闪退这一类问题从根上堵掉。</p></div>
     </div>
   </div>
 </section>
@@ -615,11 +618,11 @@ export GHR_DOWNLOAD_DIR=~/Downloads
         <h3>Windows 安装版</h3>
         <p>双击安装，桌面与开始菜单自动建快捷方式，无需 Python。</p>
         <div class="qs-steps">
-          <div class="qs-step"><span class="n">1</span>下载 GHDownloader-Windows-V1.3.0-Setup.exe</div>
+          <div class="qs-step"><span class="n">1</span>下载 GHDownloader-Windows-V1.3.1-Setup.exe</div>
           <div class="qs-step"><span class="n">2</span>双击运行安装向导，按提示完成</div>
           <div class="qs-step"><span class="n">3</span>从桌面快捷方式进入全屏 TUI</div>
         </div>
-        <div class="qs-cmd"><span>GHDownloader-Windows-V1.3.0-Setup.exe</span><a class="copy-btn" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.0/GHDownloader-Windows-V1.3.0-Setup.exe" download aria-label="下载安装版"><svg class="icon"><use href="#i-download"/></svg></a></div>
+        <div class="qs-cmd"><span>GHDownloader-Windows-V1.3.1-Setup.exe</span><a class="copy-btn" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.1/GHDownloader-Windows-V1.3.1-Setup.exe" download aria-label="下载安装版"><svg class="icon"><use href="#i-download"/></svg></a></div>
       </div>
       <div class="qs-card reveal" data-d="1">
         <span class="qs-tag"><svg class="icon icon-sm"><use href="#i-terminal"/></svg>源码运行</span>
@@ -643,7 +646,7 @@ export GHR_DOWNLOAD_DIR=~/Downloads
     <h2 class="reveal">把时间花在创造上，<br>而不是找下载链接上。</h2>
     <p class="reveal" data-d="1">开源、免费、MIT 许可。欢迎 Star，也欢迎提交 Issue 和 PR 一起完善。</p>
     <div class="cta-btns reveal" data-d="2">
-      <a class="btn btn-white btn-lg" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.0/GHDownloader-Windows-V1.3.0-Setup.exe" download><svg class="icon"><use href="#i-download"/></svg>下载 v1.3.0 安装版</a>
+      <a class="btn btn-white btn-lg" href="https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.1/GHDownloader-Windows-V1.3.1-Setup.exe" download><svg class="icon"><use href="#i-download"/></svg>下载 v1.3.1 安装版</a>
       <a class="btn btn-outline-light btn-lg" href="https://github.com/netuser2011/gh-release-helper" target="_blank" rel="noopener"><svg class="icon"><use href="#i-github"/></svg>访问 GitHub 仓库</a>
     </div>
   </div>
@@ -660,7 +663,7 @@ export GHR_DOWNLOAD_DIR=~/Downloads
       <div class="foot-col">
         <h4>项目</h4>
         <a href="https://github.com/netuser2011/gh-release-helper" target="_blank" rel="noopener">GitHub 仓库</a>
-        <a href="https://github.com/netuser2011/gh-release-helper/releases/tag/v1.3.0" target="_blank" rel="noopener">下载与 Releases</a>
+        <a href="https://github.com/netuser2011/gh-release-helper/releases/tag/v1.3.1" target="_blank" rel="noopener">下载与 Releases</a>
         <a href="https://github.com/netuser2011/gh-release-helper/blob/main/CHANGELOG.md" target="_blank" rel="noopener">更新日志</a>
       </div>
       <div class="foot-col">

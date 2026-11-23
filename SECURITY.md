@@ -17,12 +17,12 @@
 - 源码里没有任何真实 Token，也永远不会有。取值顺序固定为
   `--token` 参数 > 环境变量 `GITHUB_TOKEN` > 本地 `.github_token` 文件。
 - Token 只出现在发给 `api.github.com` 的请求头里（`Authorization: Bearer …`）。
-- 配置入口（菜单里的 `0`、首次启动的引导）只做三件事：打印 GitHub 官方的
+- 配置入口（菜单里的 `5`、首次启动的引导）只做三件事：打印 GitHub 官方的
   Token 创建页地址、把它交给系统默认浏览器、把你粘贴的内容写进 `.github_token`。
   粘贴的 Token 不会在屏幕上回显，也不会进 `crash.log`；打印出来的链接只有
   `scopes=public_repo` 和本项目名字，不含账号信息或本机路径。
 - 不想在这台机器上留 Token：直接删掉 `.github_token`，程序会退回匿名模式
-  （60 次/小时），下次按 `0` 可以再配。想彻底作废，去下面的撤销页面 revoke。
+  （60 次/小时），下次按 `5` 可以再配。想彻底作废，去下面的撤销页面 revoke。
 - 建议只授予默认的最小范围（公开仓库甚至不需要任何 scope）。
 - **如果 Token 不小心被提交、粘贴进 issue 或聊天记录**：把它当成已经泄露处理，
   立刻到 <https://github.com/settings/tokens> 撤销并重新生成，然后把本地
