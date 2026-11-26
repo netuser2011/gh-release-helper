@@ -442,6 +442,40 @@ class FetchTest(unittest.TestCase):
         self.assertFalse([c for c in server.calls if c["range"] not in ("bytes=0-0", "")],
                          "workers=1 时不该再分段请求")
 
+    def test_segment_network_break_falls_back_to_single_stream(self):
+        """分段被代理 reset 是网络失败，不是用户中断：清掉残片并改单流。"""
+        total = dl.PARALLEL_MIN_SIZE + MEGABYTE
+        saved_info, saved_part, saved_download = \
+            dl.line_file_info_full, dl._fetch_part, dl.download
+        self.addCleanup(setattr, dl, "line_file_info_full", saved_info)
+        self.addCleanup(setattr, dl, "_fetch_part", saved_part)
+        self.addCleanup(setattr, dl, "download", saved_download)
+        dl.line_file_info_full = lambda url: (total, True, "", "")
+
+        async def fail_part(*args, **kwargs):
+            raise dl.SegmentDownloadError("分段下载中断：模拟 ReadError")
+
+        dl._fetch_part = fail_part
+        fixed = self.dir / "single.zip"
+        fixed.write_bytes(b"complete")
+        calls = []
+
+        def fake_download(url, name="", directory=None, total_hint=0, etag="", modified=""):
+            calls.append((url, name, directory))
+            return fixed
+
+        dl.download = fake_download
+        buf = StringIO()
+        with redirect_stdout(buf):
+            path, how = dl.fetch(ASSET_URL, "tool.zip", self.dir)
+        self.assertEqual(how, "单流下载")
+        self.assertIs(path, fixed)
+        self.assertEqual(calls, [(ASSET_URL, "tool.zip", self.dir)])
+        self.assertIn("并发分段失败（", buf.getvalue())
+        self.assertIn("改用单流重试", buf.getvalue())
+        self.assertEqual(list(self.dir.glob("*.part")), [], "分段残片必须清干净")
+        self.assertEqual(list(self.dir.glob("*.part.meta")), [])
+
 
 class DownloadChoicesTest(unittest.TestCase):
     """下载方式的回归：只剩三项，且任何一项都不会「浏览器 + 本地」各下一遍。"""

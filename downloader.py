@@ -33,7 +33,9 @@ DEFAULT_WORKERS, MAX_WORKERS, WORKERS_ENV = 8, 16, "GHR_THREADS"
 class DownloadError(Exception):
     """下载过程中的可预期失败。"""
 class ResumableDownloadError(DownloadError):
-    """中断或取消：.part 保留，下次从断点继续。"""
+    """仅表示用户主动中断、可续传：.part 保留，下次从断点继续。"""
+class SegmentDownloadError(DownloadError):
+    """分段过程中的网络层中断，可回退单流重试。"""
 
 PROGRESS_VERSION = 1
 _meta_path = lambda part: part.with_name(part.name + ".meta")
@@ -418,7 +420,8 @@ async def _fetch_part(client: httpx.AsyncClient, url: str, start: int, end: int,
         # 否则会盖住真正的首个异常，并在事件循环关闭时留下 unhandled task。
         raise
     except httpx.HTTPError as exc:
-        raise ResumableDownloadError(f"分段下载中断：{_brief_error(exc)}") from exc
+        # 镜像限流 / 代理 reset 只是这一段的网络失败，不能算用户中断
+        raise SegmentDownloadError(f"分段下载中断：{_brief_error(exc)}") from exc
     except DownloadError:
         raise
     except OSError as exc:
@@ -465,12 +468,15 @@ def download_parallel(url: str, directory: Path, filename: str, total: int, work
                 await asyncio.gather(*[fetch_one(i) for i in pending])
     try:
         asyncio.run(run())
-    except (KeyboardInterrupt, ResumableDownloadError) as exc:
-        if isinstance(exc, KeyboardInterrupt):
-            print()
+    except KeyboardInterrupt:
+        print()
         _write_progress(part, meta)
         raise ResumableDownloadError(
             f"下载中断，已保留 {ui.human_size(done_bytes)} 进度，下次重跑只补未完成的段。") from None
+    except SegmentDownloadError:
+        # 分段网络失败要清掉半截文件，交给 fetch 回退单流；它继承 DownloadError
+        _discard_part(part)
+        raise
     except asyncio.CancelledError as exc:
         # 任务被取消（并发被服务器/代理打断）：保留进度但按可失败处理，交给 fetch 回退单流
         _write_progress(part, meta)
@@ -484,7 +490,7 @@ def download_parallel(url: str, directory: Path, filename: str, total: int, work
     return _check_file(part, dest, total, total)
 def fetch(url: str, filename: str = "", directory: Path | None = None,
           workers: int | None = None) -> tuple[Path, str]:
-    """终端下载唯一入口：优先并发分段；并发被限制时自动回退单流，保证能下完。"""
+    """终端下载唯一入口：优先并发分段；分段网络失败会回退单流，用户中断不回退。"""
     dest_dir = directory or download_dir()
     name = safe_filename(filename or url.rsplit("/", 1)[-1])
     count = worker_count() if workers is None else max(1, workers)
