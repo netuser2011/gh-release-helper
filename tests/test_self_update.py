@@ -124,13 +124,13 @@ class OfferInstallerTest(unittest.TestCase):
             su.offer_installer(saved, kind, latest)
         return saved, buf.getvalue()
 
-    def test_exe_silent_install_and_write_version(self):
+    def test_exe_silent_install(self):
         self.answers = [True]
         saved, out = self.run_offer("exe")
         self.assertEqual(len(self.popen_calls), 1)
         self.assertEqual(self.popen_calls[0][0], str(saved))
         self.assertIn("/VERYSILENT", self.popen_calls[0])
-        self.assertEqual(self.written, ["v1.3.0"])
+        self.assertEqual(self.written, [], "安装还没完成，不能提前改版本号")
 
     def test_decline_keeps_file_no_install(self):
         self.answers = [False]
@@ -143,7 +143,7 @@ class OfferInstallerTest(unittest.TestCase):
         self.answers = [True, True]
         saved, out = self.run_offer("zip")
         self.assertTrue((self.dir / "GH").is_dir())
-        self.assertEqual(self.written, ["v1.3.0"])
+        self.assertEqual(self.written, [], "版本要等新包落地后由包内文件生效")
         self.assertFalse(saved.exists())
         self.assertIn("压缩包已删除", out)
 
@@ -158,7 +158,7 @@ class OfferInstallerTest(unittest.TestCase):
         self.answers = [True]
         saved, out = self.run_offer("exe")
         self.assertEqual(self.popen_calls, [])
-        self.assertEqual(self.written, ["v1.3.0"])
+        self.assertEqual(self.written, [], "版本要等新包落地后由包内文件生效")
         self.assertIn("关闭本程序", out)
 
 

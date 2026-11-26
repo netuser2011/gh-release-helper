@@ -72,14 +72,13 @@ def _extract_zip(saved: Path) -> Path | None:
 
 
 def offer_installer(saved: Path, kind: str, latest: str) -> None:
-    """询问是否直接运行；Y 时 exe 静默安装、zip 自动解压并问删包，随后写回版本。"""
+    """询问是否直接运行；Y 时 exe 静默安装、zip 自动解压并问删包，版本以包内文件为准。"""
     if not ui.confirm("  是否直接运行安装包？", default=True):
         print(ui.c(f"  已下载到：{saved}（稍后可手动运行）。", ui.DIM))
         return
 
     if _running_from_install_dir():
-        # 安装目录里的 exe 正在运行，无法被覆盖。先写回版本，提示用户手动重启完成切换。
-        version.write_current(latest)
+        # 安装目录里的 exe 正在运行，无法被覆盖；用户还没装，提前写版本会造成「已最新」假象
         print(ui.c("  ⚠ 当前程序正从安装目录运行，无法在运行中覆盖自身。", ui.YELLOW))
         print(ui.c("  新版本已下载，请关闭本程序后手动运行安装包，或重新打开程序继续。", ui.YELLOW))
         print(ui.c(f"  安装包位置：{saved}", ui.DIM))
@@ -90,7 +89,6 @@ def offer_installer(saved: Path, kind: str, latest: str) -> None:
         if target is None:
             return
         print(ui.c(f"  ✔ 已解压到：{target}", ui.GREEN))
-        version.write_current(latest)
         if ui.confirm("  要不要删除压缩包？", default=False):
             try:
                 saved.unlink()
@@ -105,7 +103,6 @@ def offer_installer(saved: Path, kind: str, latest: str) -> None:
         print(ui.c(f"  ✖ 启动安装程序失败：{exc}", ui.RED))
         print(ui.c(f"  请手动运行：{saved}", ui.DIM))
         return
-    version.write_current(latest)
     print(ui.c("  ✔ 已启动静默安装，完成后可重新打开程序。", ui.GREEN))
 
 
