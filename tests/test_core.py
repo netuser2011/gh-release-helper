@@ -61,10 +61,15 @@ class RepoNameTest(unittest.TestCase):
         self.assertEqual(gh.normalize_repo("https://github.com/cli/cli"), ("cli", "cli"))
         self.assertEqual(gh.normalize_repo("github.com/cli/cli/"), ("cli", "cli"))
 
+    def test_deep_links_keep_only_owner_and_repo(self):
+        self.assertEqual(gh.normalize_repo("https://github.com/o/r/releases/tag/v1"), ("o", "r"))
+        self.assertEqual(gh.normalize_repo("https://github.com/o/r/tree/main"), ("o", "r"))
+        self.assertEqual(gh.normalize_repo("https://github.com/o/r/releases?expanded=true#readme"), ("o", "r"))
+
     def test_bare_name_is_not_a_repo(self):
         self.assertEqual(gh.normalize_repo("files"), (None, None))
         self.assertEqual(gh.normalize_repo(""), (None, None))
-        self.assertEqual(gh.normalize_repo("a/b/c"), (None, None))
+        self.assertEqual(gh.normalize_repo("a/b/c"), ("a", "b"))
 
 
 class AssetTypeTest(unittest.TestCase):

@@ -146,10 +146,12 @@ def request_json(url: str, params: dict | None = None, token: str = "") -> tuple
 def normalize_repo(text: str) -> tuple[str, str] | tuple[None, None]:
     """把用户输入归一化成 (owner, name)，接受 owner/repo、仓库名或完整网页地址。"""
     raw = (text or "").strip().strip("/")
+    # Release / tree 等深链接和查询串不是仓库名的一部分，只认前两段
+    raw = raw.split("?", 1)[0].split("#", 1)[0]
     if "github.com/" in raw:
         raw = raw.split("github.com/", 1)[1]
     parts = [p for p in raw.split("/") if p]
-    if len(parts) == 2:
+    if len(parts) >= 2:
         return parts[0], parts[1]
     return None, None
 
