@@ -877,6 +877,8 @@ class CheckUpdatesScreen(BaseScreen):
     @work(thread=True)
     def do_check(self, entries: list, targets: list, action: str, notice: str) -> None:
         lines: list[str] = []
+        # worker 只收集结果：worker 线程里改 store / 写盘会和删收藏、退出保存抢同一份文件
+        updates: list[tuple[str, str, list[dict]]] = []
 
         # 本程序：只检查版本，弹窗下载放到主线程 show_lines 里做
         try:
@@ -911,18 +913,23 @@ class CheckUpdatesScreen(BaseScreen):
                 tag = str(release.get("tag_name") or "-")
                 state = "↑ 新版本" if last != "-" and last != tag else "— 无变化"
                 lines.append(f"{key}：{last} → {tag}  {state}")
-                fav.update_release(self.host_app.store, key, tag, [
+                updates.append((key, tag, [
                     {"name": a.get("name", ""), "size": int(a.get("size", 0) or 0),
                      "url": a.get("browser_download_url", "")}
                     for a in gh.release_assets(release)
-                ])
-            fav.save(self.host_app.store)
+                ]))
+            # save 交给主线程：worker 里写盘会和删收藏、退出保存互相覆盖
 
-        self.app.call_from_thread(self.show_lines, lines)
+        self.app.call_from_thread(self.show_lines, lines, updates)
 
-    def show_lines(self, lines: list[str]) -> None:
+    def show_lines(self, lines: list[str], updates: list[tuple[str, str, list[dict]]]) -> None:
         self.query_one(".bar", Static).update("检查结果：")
         self.query_one("#lines", Static).update("\n".join(lines))
+        # 回到主线程再改 store 并整批写盘，状态行也随之刷新
+        for key, tag, assets in updates:
+            fav.update_release(self.host_app.store, key, tag, assets)
+        fav.save(self.host_app.store)
+        self.host_app._refresh_status()
         if self.self_release:
             asyncio.create_task(self.offer_self_update())
 

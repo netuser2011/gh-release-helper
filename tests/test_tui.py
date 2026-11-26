@@ -435,6 +435,41 @@ class CheckUpdatesParityTest(unittest.TestCase):
         count, _text = self.run_screen(3, None)
         self.assertEqual(count, 3)
 
+    def test_writeback_happens_once_on_main_thread(self):
+        """20 个仓库的检查结果只回写一次，且在主线程完成，避免和退出保存竞态。"""
+        store = self.store(20)
+        saves = []
+        refreshes = []
+
+        def fake_iter(targets, token):
+            for index, (key, _meta) in enumerate(targets):
+                yield (index, key, {"last_tag": "v1.0"},
+                       {"tag_name": "v2.0", "assets": [
+                           {"name": "a.zip", "size": 1, "browser_download_url": "https://x/a.zip"}]},
+                       None, "")
+
+        async def go():
+            app = tui.GHReleaseApp("", "无")
+            app.store = store
+            with patch.object(tui.fc, "iter_favorite_repos", fake_iter), \
+                 patch.object(tui.fav, "save", lambda s: saves.append(s)), \
+                 patch.object(tui.su, "check_self_update", return_value=(False, {})):
+                async with app.run_test(size=(120, 40)) as pilot:
+                    await pilot.pause()
+                    with patch.object(tui.GHReleaseApp, "_refresh_status",
+                                      lambda self: refreshes.append(self)):
+                        app.push_screen(tui.CheckUpdatesScreen(app))
+                        for _ in range(10):
+                            await pilot.pause()
+
+        asyncio.run(go())
+        self.assertEqual(len(saves), 1, "整批检查只允许一次写盘")
+        self.assertIs(saves[0], store)
+        self.assertEqual(len(refreshes), 1)
+        for record in store["repos"].values():
+            self.assertEqual(record["last_tag"], "v2.0")
+            self.assertEqual(record["assets"][0]["name"], "a.zip")
+
 
 if __name__ == "__main__":
     unittest.main()
