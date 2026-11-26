@@ -10,11 +10,12 @@ import webbrowser
 from contextlib import contextmanager
 from pathlib import Path
 import httpx
+import paths
 import time
 import ui
 CHUNK = 256 * 1024
 DOWNLOAD_DIR_ENV = "GHR_DOWNLOAD_DIR"
-CONFIG_FILE = Path(__file__).resolve().with_name("config.json")
+CONFIG_FILE = paths.app_data_dir() / "config.json"
 _ILLEGAL = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 # Windows 保留设备名：不带扩展名的 CON / NUL / COM1 等直接 open 会失败
 _WINDOWS_RESERVED = frozenset(

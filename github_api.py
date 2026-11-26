@@ -12,6 +12,7 @@ import stat
 from collections.abc import Mapping
 from pathlib import Path
 
+import paths
 import requests
 
 API_BASE = "https://api.github.com"
@@ -19,7 +20,7 @@ REQUEST_TIMEOUT = 20
 USER_AGENT = "gh-release-helper"
 
 # Token 本地文件名（已在 .gitignore 里忽略，绝不能提交到仓库）
-TOKEN_FILE = Path(__file__).resolve().with_name(".github_token")
+TOKEN_FILE = paths.app_data_dir() / ".github_token"
 
 # Token 页面：引导用户去官方页面自己生成，源码里永远不出现真实 Token。
 # scopes=public_repo 对应经典 Token，公共仓库读取只需要这一项。

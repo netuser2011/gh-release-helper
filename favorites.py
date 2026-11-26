@@ -8,7 +8,9 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-FAVORITES_FILE = Path(__file__).resolve().with_name("favorites.json")
+import paths
+
+FAVORITES_FILE = paths.app_data_dir() / "favorites.json"
 SCHEMA_VERSION = 1
 
 

@@ -31,6 +31,7 @@ import favorites as fav
 import flow_common as fc
 import github_api as gh
 import pager
+import paths
 import self_update as su
 import syscert
 import ui
@@ -790,6 +791,7 @@ def main() -> int:
 
 if __name__ == "__main__":
     ui.setup_streams()  # 必须最先执行：GBK 控制台里 print emoji 会直接闪退
+    paths.migrate_legacy_files()  # 只在真实启动时迁移，别让测试导入碰用户数据
     try:
         sys.exit(main())
     except KeyboardInterrupt:

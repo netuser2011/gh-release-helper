@@ -21,6 +21,7 @@ bootstrap.ensure_runtime()  # Python 版本与 requests，失败时提示不会�
 import argparse
 
 import github_api as gh
+import paths
 import ui
 
 
@@ -103,6 +104,7 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     ui.setup_streams()  # 必须最先执行：GBK 控制台里 print 中文/特殊字符会直接闪退
+    paths.migrate_legacy_files()  # 只在真实启动时迁移，别让测试导入碰用户数据
     try:
         sys.exit(main())
     except KeyboardInterrupt:
