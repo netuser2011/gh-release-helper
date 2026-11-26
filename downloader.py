@@ -53,8 +53,16 @@ def _write_progress(part: Path, info: dict) -> None:
         tmp.unlink(missing_ok=True)
         raise
 def _discard_part(part: Path) -> None:
-    part.unlink(missing_ok=True)
-    _meta_path(part).unlink(missing_ok=True)
+    # 杀软 / 索引占用时删不掉，留给下次启动再清，不能盖住真正的错误
+    try:
+        part.unlink(missing_ok=True)
+    except OSError:
+        pass
+    meta = _meta_path(part)
+    try:
+        meta.unlink(missing_ok=True)
+    except OSError:
+        pass
 def _can_resume(part: Path, meta: dict | None, url: str, total: int,
                 etag: str, modified: str, mode: str) -> bool:
     if not meta or meta.get("v") != PROGRESS_VERSION:

@@ -387,6 +387,22 @@ class ParallelDownloadTest(unittest.TestCase):
         self.assertEqual((self.dir / "tool.zip").read_bytes(), b"old", "不能覆盖用户已有文件")
 
 
+class DiscardPartTest(unittest.TestCase):
+    """清理临时文件不能反过来制造新异常，盖住正在上报的下载错误。"""
+
+    def test_locked_part_and_meta_do_not_raise(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        part = root / "tool.zip.part"
+        part.write_bytes(b"half")
+        meta = dl._meta_path(part)
+        meta.write_text("{}", encoding="utf-8")
+        # Windows 上 open 着的 .part 无法 unlink（WinError 32），这正是杀软占用的场景
+        with part.open("rb"), meta.open("rb"):
+            dl._discard_part(part)
+
+
 class FetchTest(unittest.TestCase):
     """fetch() 是终端下载唯一的入口：决定用不用多线程，然后干活。"""
 
