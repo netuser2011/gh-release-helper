@@ -77,11 +77,12 @@ def ensure_runtime():
         if "requests" in missing:
             # 顺带覆盖「Python 自带 _ssl 编译坏了导致 requests 装不上」这种
             hint = "\n（若安装时报 _ssl / OpenSSL 缺失，属于装 Python 时的问题，重装一次官方安装包通常就好。）"
+        # 先把主句里的 %s 填好再拼 hint：hint 以后若带 % 也不会被当成格式符二次解析
         fatal_exit(
-            "缺少第三方依赖：%s\n请先执行：pip install -r requirements.txt\n"
-            "如果本机装了多个 Python，用这条更稳：python -m pip install -r requirements.txt\n"
-            "双击 Run.bat 会在首次运行时自动执行上面这条；手动运行请先确认它装成功了。"
-            + hint,
+            ("缺少第三方依赖：%s\n请先执行：pip install -r requirements.txt\n"
+             "如果本机装了多个 Python，用这条更稳：python -m pip install -r requirements.txt\n"
+             "双击 Run.bat 会在首次运行时自动执行上面这条；手动运行请先确认它装成功了。"
+             % "、".join(missing)) + hint,
         )
     import requests
     # 让 requests / httpx 信任系统证书：Watt Toolkit 等代理工具的根证书装在系统里，

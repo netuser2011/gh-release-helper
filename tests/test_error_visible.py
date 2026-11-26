@@ -409,6 +409,19 @@ class BootstrapTest(unittest.TestCase):
     def test_ensure_runtime_passes_on_this_interpreter(self):
         self.assertTrue(hasattr(bootstrap.ensure_runtime(), "get"))
 
+    def test_ensure_runtime_names_the_missing_module(self):
+        """缺依赖提示要写清到底缺哪个，不能把 %s 直接甩给用户。"""
+        self.addCleanup(setattr, bootstrap, "REQUIRED_MODULES", bootstrap.REQUIRED_MODULES)
+        bootstrap.REQUIRED_MODULES = bootstrap.REQUIRED_MODULES + ("no_such_mod_xyz",)
+        sys.stdin = io.StringIO("")  # 非交互：不能卡在等按键上
+        err = io.StringIO()
+        with redirect_stderr(err):
+            with self.assertRaises(SystemExit):
+                bootstrap.ensure_runtime()
+        text = err.getvalue()
+        self.assertIn("缺少第三方依赖：no_such_mod_xyz", text)
+        self.assertNotIn("%s", text)
+
     def test_wait_for_enter_only_applies_to_a_real_keyboard(self):
         asked = []
         saved_input = builtins.input
