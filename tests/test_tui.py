@@ -218,6 +218,53 @@ class DownloadScreenTest(unittest.TestCase):
         self.assertTrue(has_speed)           # 速度文本显示
         self.assertIsNone(hook)              # hook 用完还原，不污染 CLI
 
+    def test_progress_hook_is_throttled_but_pushes_completion(self):
+        """高速线路不必每块都跨线程刷新，但最后一帧必须把进度条推到 100%。"""
+        self.addCleanup(setattr, dl, "progress_hook", None)
+        original = tui.DownloadScreen._on_progress
+        seen = []
+
+        def spy(self, done, total, rate):
+            seen.append((done, total))
+            return original(self, done, total, rate)
+
+        class Clock:
+            def __init__(self):
+                self.now = 0.2
+
+            def monotonic(self):
+                return self.now
+
+        clock = Clock()
+
+        def fake_fetch(url, name, target, workers=None):
+            clock.now = 0.2
+            for done in range(5, 101, 5):
+                if done == 100:
+                    clock.now = 0.5  # 末帧强制推送，即使刚推过
+                if dl.progress_hook:
+                    dl.progress_hook(done, 100, done * 1000)
+                clock.now += 0.002  # 中间帧间隔远小于 0.1 秒
+            return Path("/tmp/a.zip"), "单流下载"
+
+        async def run():
+            with patch.object(dl, "choose_line", return_value=(self.LINE, self.RESULTS)), \
+                 patch.object(dl, "fetch", side_effect=fake_fetch), \
+                 patch.object(tui.pd, "kind_of", return_value="other"), \
+                 patch.object(tui, "time", clock), \
+                 patch.object(tui.DownloadScreen, "_on_progress", spy):
+                app = tui.GHReleaseApp("", "无")
+                async with app.run_test(size=(120, 40)) as pilot:
+                    await pilot.pause()
+                    app.push_screen(tui.DownloadScreen(app, "https://x/a.zip", "app.zip"))
+                    for _ in range(10):
+                        await pilot.pause()
+                    return app.screen_stack[-1].query_one("#bar", ProgressBar).progress
+
+        progress = asyncio.run(run())
+        self.assertEqual(seen, [(5, 100), (100, 100)], "中间帧被节流，完成帧必须送达")
+        self.assertEqual(progress, 100)
+
 
 class BaseScreenTest(unittest.TestCase):
     """所有功能页都有可点击返回按钮，ESC 绑定仍保留。"""

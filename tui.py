@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import zipfile
 from pathlib import Path
 
@@ -621,7 +622,14 @@ class DownloadScreen(BaseScreen):
         self.app.call_from_thread(self._set_state, f"已选线路：{line.get('label', line.get('id'))}  ·  测速完成，开始下载")
 
         # 2) 注入进度回调，下载时实时更新进度条（线程安全）
+        last_push = 0.0
+
         def hook(done: int, total: int, rate: float) -> None:
+            nonlocal last_push
+            # call_from_thread 是同步往返，高速线路每 256KB 推一次会把界面拖死
+            if done < total and time.monotonic() - last_push < 0.1:
+                return
+            last_push = time.monotonic()
             self.app.call_from_thread(self._on_progress, done, total, rate)
 
         self._my_hook = hook
