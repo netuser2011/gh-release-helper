@@ -122,11 +122,14 @@ def term_width() -> int:
 
 
 def display_width(text: str) -> int:
-    """字符串在终端里占几列：东亚全角字符与 emoji 记 2 列，其余记 1 列。"""
+    """字符串在终端里占几列：东亚全角与 emoji 记 2 列，勾叉和其余字符记 1 列。"""
     width = 0
     for ch in text:
         cp = ord(ch)
-        if cp > 0x2E80 or 0x1F300 <= cp <= 0x1FAFF or 0x2600 <= cp <= 0x27BF:
+        if 0x2713 <= cp <= 0x2716:
+            # ✓✔✕✖ 在终端里只有一列，不能按 symbol 区间算成两列
+            width += 1
+        elif cp > 0x2E80 or 0x1F300 <= cp <= 0x1FAFF or 0x2600 <= cp <= 0x27BF:
             width += 2
         else:
             width += 1
@@ -188,11 +191,16 @@ def table(rows: list[list[str]], headers: list[str]) -> None:
     widths = [display_width(str(headers[i])) for i in range(columns)]
     for row in cells:
         for i, cell in enumerate(row):
-            widths[i] = max(widths[i], display_width(str(cell)))
+            # 行比表头多一格时按 0 列起算，别让 widths[i] 越界
+            width = max(widths[i] if i < len(widths) else 0, display_width(str(cell)))
+            if i < len(widths):
+                widths[i] = width
+            else:
+                widths.append(width)
     widths = [min(w, max(20, term_width() - columns * 3)) for w in widths]
 
     def render(row: list[str]) -> str:
-        parts = [" " + str(cell) + " " * (widths[i] - display_width(str(cell))) + " "
+        parts = [" " + str(cell) + " " * ((widths[i] if i < len(widths) else 0) - display_width(str(cell))) + " "
                  for i, cell in enumerate(row)]
         return "|" + "|".join(parts) + "|"
 

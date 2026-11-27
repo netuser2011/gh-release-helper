@@ -20,6 +20,12 @@ class WidthTest(unittest.TestCase):
         self.assertEqual(ui.display_width("👋"), 2)
         self.assertEqual(ui.display_width("⭐ 收藏"), 6)
 
+    def test_ticks_and_crosses_are_one_column(self):
+        for mark in ("✓", "✔", "✕", "✖"):
+            with self.subTest(mark=mark):
+                self.assertEqual(ui.display_width(mark), 1)
+        self.assertEqual(ui.display_width("✔ 完成"), 6)  # 其它 emoji 规则不变
+
     def test_pad_uses_display_width(self):
         self.assertEqual(ui.display_width(ui.pad("下载", 10)), 10)
         self.assertEqual(ui.pad("abc", 2), "abc")  # 已经超宽就不补
@@ -117,6 +123,19 @@ class TableTest(unittest.TestCase):
             ui.table([["a", "b"]], ["列一", "col2"])
         out = buf.getvalue().splitlines()
         self.assertEqual(ui.display_width(out[0]), ui.display_width(out[-1]))
+
+    def test_more_cells_than_headers_do_not_crash(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            ui.table([["a", "b", "c"]], ["x", "y"])
+        self.assertIn("c", buf.getvalue())
+
+    def test_tick_rows_stay_aligned(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            ui.table([["✔", "ok"], ["✖", "bad"]], ["状态", "说明"])
+        lines = [line for line in buf.getvalue().splitlines() if line.startswith("|")]
+        self.assertEqual(len({ui.display_width(line) for line in lines}), 1)
 
 
 class HoldTest(unittest.TestCase):
