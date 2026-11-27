@@ -1,10 +1,10 @@
 [Setup]
 AppId={{B1E3A2C4-5D6F-4A7B-8C9D-0E1F2A3B4C5D}
 AppName=GH Downloader
-AppVersion=1.3.1
+AppVersion=1.3.2
 DefaultDirName={autopf}\GH Downloader
 DefaultGroupName=GH Downloader
-OutputBaseFilename=GHDownloader-Windows-V1.3.1-Setup
+OutputBaseFilename=GHDownloader-Windows-V1.3.2-Setup
 ArchitecturesInstallIn64BitMode=x64compatible
 SetupIconFile=icon.ico
 PrivilegesRequired=lowest

@@ -28,7 +28,7 @@ GitHub Release 交互式下载助手  ·  搜索 · 收藏 · 一键下载
 - **不知道作者也能找**：只输入仓库名关键词，按星标排序列出候选（作者/名字、星标、语言），选中进入仓库页后点「查看更新说明」即可全屏查看最新 Release 的 Markdown 正文，方向键滚动、ESC 返回，不跳浏览器。
 - **收藏夹持久化**：以 `作者名/仓库名` 为键写入 `favorites.json`，附带星标、简介与上次看到的资产清单，重启后仍在；可删除，二次确认后列表与计数同步更新。
 - **批量检查更新**：菜单选「检查更新」，先看本程序自己有没有新版本，再一次遍历全部收藏仓库的最新 Release，对比上次 tag 与最新版本，展示更新摘要；内置限流保护（无 Token 最多 40 个、超过 30 个先问一句、403/429 自动停止），全屏界面与文本菜单走同一套规则。
-- **程序自更新**：发现新版本后可以直接下载安装包——优先 `Setup.exe`，没有就退回便携 zip。文本菜单里确认后走 `/VERYSILENT` 静默安装并写回 `version.txt`；全屏界面走「下载后处理」，下载完问你一句再启动安装向导。每一步都要你确认，程序不会背着你替换自己。
+- **程序自更新**：发现新版本后可以直接下载安装包——优先 `Setup.exe`，没有就退回便携 zip。文本菜单里确认后走 `/VERYSILENT` 静默安装；全屏界面走「下载后处理」，下载完问你一句再启动安装向导。版本号以新包自带的 `version.txt` 为准，没真正装完不会显示「已最新」。每一步都要你确认，程序不会背着你替换自己。
 - **三种下载方式，各做一件事**：终端下载到本地、唤起系统默认浏览器、只打印下载链接。全屏页面点按钮即可，不用输 1/2/3。
 - **下载后自动处理**：exe/msi 等安装包下载完弹窗询问是否直接运行；zip 下载完自动解压到同名文件夹并询问是否删除压缩包。
 - **并发分段**：文件 ≥ 512 KB 且服务器支持 `Range` 时自动切成多段，用 asyncio 并发下载（默认 8 路，`GHR_THREADS` 可调 1-16），完成后按总字节数核对；并发被镜像/代理限制时自动回退单流。
@@ -61,17 +61,17 @@ GitHub Release 交互式下载助手  ·  搜索 · 收藏 · 一键下载
 
 | 文件 | 说明 |
 | --- | --- |
-| [GHDownloader-Windows-V1.3.1-Setup.exe](https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.1/GHDownloader-Windows-V1.3.1-Setup.exe) | 安装版，自动创建桌面/开始菜单快捷方式，支持从「已安装的应用」卸载 |
-| [GHDownloader-Windows-V1.3.1.zip](https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.1/GHDownloader-Windows-V1.3.1.zip) | 便携版，解压后直接运行 `GH Downloader.exe`，无需安装 |
+| [GHDownloader-Windows-V1.3.2-Setup.exe](https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.2/GHDownloader-Windows-V1.3.2-Setup.exe) | 安装版，自动创建桌面/开始菜单快捷方式，支持从「已安装的应用」卸载 |
+| [GHDownloader-Windows-V1.3.2.zip](https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.2/GHDownloader-Windows-V1.3.2.zip) | 便携版，解压后直接运行 `GH Downloader.exe`，无需安装 |
 
 命令行下载：
 
 ```bash
 # 安装版
-wget "https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.1/GHDownloader-Windows-V1.3.1-Setup.exe"
+wget "https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.2/GHDownloader-Windows-V1.3.2-Setup.exe"
 
 # 便携版
-wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.1/GHDownloader-Windows-V1.3.1.zip"
+wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.2/GHDownloader-Windows-V1.3.2.zip"
 ```
 
 > 便携版解压后，`GH Downloader.exe` 与 `_internal/` 文件夹需保持在同一目录，不要单独移动 exe。
@@ -147,6 +147,7 @@ python main.py files                   # 只知道名字，先搜索
 | --- | --- |
 | `GITHUB_TOKEN` | Token 来源之一，优先级低于 `--token`、高于 `.github_token` |
 | `GHR_DOWNLOAD_DIR` | 覆盖默认下载目录，优先级高于 `config.json` |
+| `GHR_DATA_DIR` | Token / 收藏 / 配置的存放目录；默认 `%APPDATA%\gh-release-helper`，非 Windows 为 `~/.local/share/gh-release-helper` |
 | `GHR_THREADS` | 分段下载并发数，默认 8，取值夹在 1-16，写非数字则回到默认 |
 | `GHR_NO_TUI` | 设了它就不进全屏 TUI，走 rich 文本菜单（管道 / CI 自动如此） |
 | `NO_COLOR` / `FORCE_COLOR` | 关闭 / 强制颜色，只认非零值；`NO_COLOR=0` 不算开启 |
@@ -154,12 +155,14 @@ python main.py files                   # 只知道名字，先搜索
 
 | 本地文件 | 内容 | 是否提交 |
 | --- | --- | --- |
-| `version.txt` | 当前版本号的唯一真相源（`V1.3.1`），源码里不写死版本 | 提交 |
+| `version.txt` | 当前版本号的唯一真相源（`V1.3.2`），源码里不写死版本 | 提交 |
 | `favorites.json` | 收藏的仓库、星标、简介、上次看到的 tag 与资产清单 | 忽略 |
 | `config.json` | 记住的下载目录 | 忽略 |
 | `.github_token` | 本地 Token | 忽略 |
 | `crash.log` | 报错与 traceback（不含 Token） | 忽略 |
 | `<目标文件>.part` / `.part.meta` | 断点续传的临时数据，下载成功后自动清理 | 忽略 |
+
+`favorites.json`、`config.json`、`.github_token` 现在放在用户数据目录：Windows 是 `%APPDATA%\gh-release-helper\`，其他平台是 `~/.local/share/gh-release-helper/`，可用 `GHR_DATA_DIR` 覆盖。从旧版源码目录启动时会自动复制一份过去，旧文件不删除；装在 Program Files 后也能正常写入，卸载不会丢数据。`version.txt` 仍留在程序目录，供安装包覆盖。
 
 `favorites.json` 损坏时程序会把它备份成 `favorites.json.bak` 再重建，不会直接丢掉你的收藏。
 
@@ -242,7 +245,7 @@ gh-release-helper/
 ├── setup.iss         # Inno Setup 脚本，产出 Windows 安装版
 ├── icon.ico          # 应用图标（打包与安装向导共用）
 ├── requirements.txt
-├── version.txt       # 版本号唯一真相源（V1.3.1）
+├── version.txt       # 版本号唯一真相源（V1.3.2）
 ├── .gitignore        # 忽略 favorites.json / config.json / crash.log / .github_token
 ├── .editorconfig     # 统一 UTF-8 与缩进，避免中文注释被写坏
 ├── LICENSE           # MIT
@@ -272,7 +275,7 @@ gh-release-helper/
     └── ISSUE_TEMPLATE/               # 问题反馈 / 功能建议 两个模板
 ```
 
-运行后会自动生成这几个本地文件，都不需要提交：`favorites.json`、`config.json`、`.github_token`、`crash.log`。
+运行后会自动生成这几个本地文件，都不需要提交：`crash.log` 在程序目录，`favorites.json`、`config.json`、`.github_token` 在用户数据目录（见上）。
 
 ## 开发与测试
 
@@ -320,7 +323,7 @@ Windows 7/8 的旧控制台不支持 ANSI。Windows 10 1511+ 会自动启用虚�
 不会。自更新只挂在「检查更新」这一步后面：你不点它，程序不会去查自己的新版本。点了也会依次问你「是否下载安装包」和「是否直接运行安装包」，任意一步选否都只是把文件留在下载目录里。文本菜单路径确认后走 `/VERYSILENT` 静默安装，全屏界面则弹出正常的安装向导——两种都会写明装了哪个版本。
 
 **Q：开着 Watt Toolkit 报 `InvalidURL: Invalid port`？**
-这是 v1.3.1 修掉的坑：代理工具会把 `[::1]`、`::1` 这类 IPv6 字面量写进 `NO_PROXY`，httpx 0.28 拿它当 URL 解析就直接抛异常，导致测速和下载全线失败。现在程序构造下载客户端时会临时忽略这些无法解析的条目，构造完立刻还原环境变量。升级到 v1.3.1 即可，不需要你改系统代理设置。
+这是 v1.3.1 修掉的坑：代理工具会把 `[::1]`、`::1` 这类 IPv6 字面量写进 `NO_PROXY`，httpx 0.28 拿它当 URL 解析就直接抛异常，导致测速和下载全线失败。现在程序构造下载客户端时会临时忽略这些无法解析的条目，构造完立刻还原环境变量。升级到 v1.3.2 即可，不需要你改系统代理设置。
 
 **Q：程序显示自己是 `V0.0.0`，或永远提示有更新？**
 版本号来自程序目录里的 `version.txt`（唯一真相源，源码里不写死）。这个文件丢了或内容没有数字，就会回退成 `V0.0.0`——任何真实 Release 都比它新，于是每次都提示更新。便携版请确认 `GH Downloader.exe` 和 `_internal/` 留在同一目录；`_internal\version.txt` 里应该是当前版本号。

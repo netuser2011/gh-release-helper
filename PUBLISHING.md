@@ -151,7 +151,7 @@ python -m pip install pyinstaller
 python -m PyInstaller --clean --noconfirm GHDownloader.spec   # → dist\GH Downloader\
 
 Compress-Archive -Path "dist\GH Downloader\*" `
-  -DestinationPath "Output\GHDownloader-Windows-V1.3.1.zip"   # 便携版
+  -DestinationPath "Output\GHDownloader-Windows-V1.3.2.zip"   # 便携版
 iscc setup.iss                                                # 安装版 → Output\...-Setup.exe
 ```
 
@@ -159,9 +159,9 @@ iscc setup.iss                                                # 安装版 → Ou
 
 | 位置 | 写法 |
 | --- | --- |
-| `version.txt` | 唯一真相源（`V1.3.1`）；源码里不写死版本号 |
-| `setup.iss` | `AppVersion=1.3.1` + `OutputBaseFilename=GHDownloader-Windows-V1.3.1-Setup` |
-| README / RELEASE_NOTES 的直链 | `.../releases/download/v1.3.1/GHDownloader-Windows-V1.3.1-Setup.exe` |
+| `version.txt` | 唯一真相源（`V1.3.2`）；源码里不写死版本号 |
+| `setup.iss` | `AppVersion=1.3.2` + `OutputBaseFilename=GHDownloader-Windows-V1.3.2-Setup` |
+| README / RELEASE_NOTES 的直链 | `.../releases/download/v1.3.2/GHDownloader-Windows-V1.3.2-Setup.exe` |
 | `docs/index.html` 的按钮链接 | 同上，便携版一起改 |
 
 打完先验三件事，不用联网：
@@ -174,16 +174,16 @@ iscc setup.iss                                                # 安装版 → Ou
 ## 第 8 步：打 tag，发 Release
 
 ```bash
-git tag -a v1.3.1 -m "v1.3.1：代理兼容修复 / 键位统一 / 打包可复现"
-git push origin v1.3.1
+git tag -a v1.3.2 -m "v1.3.2：代理兼容修复 / 键位统一 / 打包可复现"
+git push origin v1.3.2
 ```
 
-网页 → Releases → Draft new release → 选 `v1.3.1`：
+网页 → Releases → Draft new release → 选 `v1.3.2`：
 
-- **Release title**：`v1.3.1 代理兼容修复 · 键位统一 · 打包可复现`
+- **Release title**：`v1.3.2 代理兼容修复 · 键位统一 · 打包可复现`
 - **Describe what this release does** 直接粘 `RELEASE_NOTES.md` 的正文，别只写一句"see changelog"
 - **上传两个二进制资产**（第 7 步的产物，名字必须和 README/官网的直链一字不差）：
-  `GHDownloader-Windows-V1.3.1-Setup.exe`、`GHDownloader-Windows-V1.3.1.zip`
+  `GHDownloader-Windows-V1.3.2-Setup.exe`、`GHDownloader-Windows-V1.3.2.zip`
 - 源码包交给 GitHub 自带的 `Source code (zip/tar.gz)`，不用自己 `git archive` 再传一份
 
 ## 第 9 步：让别人找到它

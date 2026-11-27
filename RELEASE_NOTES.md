@@ -1,8 +1,8 @@
-# GH Downloader v1.3.1
+# GH Downloader v1.3.2
 
 > 终端里的 GitHub Release 下载助手 —— 全屏交互、按类型筛选、多线路择优、一键下载。
 
-本版为 **稳定性与一致性版本**：修掉了开着代理工具时下载全线失败的问题，把两套界面的菜单编号统一成同一套，让全屏界面和文本菜单的「检查更新」走同一套限流规则，并让发布产物可以在任何机器上复现打包。
+本版为 **稳定性与数据迁移版本**：修掉缺依赖提示的占位符、分段下载失败被误判成「用户中断」、自更新还没装完就改写版本号等 11 处问题；同时把 Token / 收藏 / 配置搬到 `%APPDATA%`，装在 Program Files 后也能正常保存，卸载不再丢数据。
 
 ---
 
@@ -10,8 +10,8 @@
 
 | 文件 | 说明 |
 | --- | --- |
-| `GHDownloader-Windows-V1.3.1-Setup.exe` | **推荐。** 安装版，双击运行，自动配置快捷方式与卸载项 |
-| `GHDownloader-Windows-V1.3.1.zip` | 便携版，解压后直接运行 `GH Downloader.exe`，无需安装 |
+| `GHDownloader-Windows-V1.3.2-Setup.exe` | **推荐。** 安装版，双击运行，自动配置快捷方式与卸载项 |
+| `GHDownloader-Windows-V1.3.2.zip` | 便携版，解压后直接运行 `GH Downloader.exe`，无需安装 |
 
 两种文件均无需安装 Python，功能完全一致。
 
@@ -19,13 +19,13 @@
 
 ```bash
 # 安装版（Windows）
-wget "https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.1/GHDownloader-Windows-V1.3.1-Setup.exe"
+wget "https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.2/GHDownloader-Windows-V1.3.2-Setup.exe"
 
 # 便携版
-wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.1/GHDownloader-Windows-V1.3.1.zip"
+wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/releases/download/v1.3.2/GHDownloader-Windows-V1.3.2.zip"
 ```
 
-已经是 v1.3.0 的话不用手动下载：打开程序 → 菜单 `4`「检查更新」，确认后会自动下载安装包并升级。
+已经是 v1.3.1 的话不用手动下载：打开程序 → 菜单 `4`「检查更新」，确认后会自动下载安装包并升级。新版本号以安装包自带的 `version.txt` 为准，没真正装完不会显示「已最新」。
 
 ---
 
@@ -33,27 +33,20 @@ wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/relea
 
 ### 修复
 
-- **开着代理工具时下载全线失败。** 代理工具常把 `[::1]`、`::1` 这类 IPv6 字面量写进 `NO_PROXY`，httpx 0.28 会把每一项当 URL 解析并抛 `InvalidURL: Invalid port`，导致线路测速和终端下载一个都跑不起来。现在构造 httpx 客户端期间临时清洗 `NO_PROXY`，构造完立刻还原环境变量，你不需要改任何系统设置；`requests` 那条路径不受影响。
-- **全屏界面「检查更新」会静默裁剪收藏。** 未配 Token 时超过 40 个原本一声不响只查前 40、超过 30 个不问就砍到 30，和文本菜单「直接拒绝 / 先问一句」的行为不一致。现在两条界面共用同一份判定逻辑，拒绝条件、确认弹窗、提示文案完全一致。
-- **全屏界面的「检查更新」没有限流保护。** 无 Token 的 40 个上限、有 Token 的 30 个确认、0.5 秒间隔、低配额提前停止、403/429 停批，现在和文本菜单走同一条路径。
-- **资产文件名撞上 Windows 保留设备名（`CON`、`NUL`、`COM1` 等）时直接下载失败。** 净化后的名字命中保留名时自动加下划线。
-- **并发测速在超时或异常路径上会甩出裸异常**，把整个下载流程带崩；现在转成该线路的「测速异常」明细，未完成任务的取消也会等收尾，不再留「Task was destroyed」告警。
-- **全屏界面的自更新只认 Setup.exe**，仓库只发便携 zip 时更新不了；现在和文本菜单共用安装包选型，没有 exe 时 zip 兜底。
-
-### 变更
-
-- **两套界面菜单编号统一。** `GHR_NO_TUI` / 管道 / CI 下的文本菜单此前是「4 退出、5 检查更新、0 配 Token」，和全屏界面的「4 检查更新、5 配 Token、0 退出」互相打架——同一个数字在两个界面干不同的事。现在同一个数字在两个界面做同一件事：`1-4` 业务流程、`5` 配置 Token、`0` 退出。
-- 资产类型优先展示表去掉 `mas` / `kmassix` 两个实际不存在的后缀；没列到的后缀仍按数量排在常见类型之后，筛选行为不变。
+- **缺依赖提示出现字面量 `%s`。** 启动检查算出了缺失模块却没填进提示语，用户和 `crash.log` 里都看到「缺少第三方依赖：%s」。现在显示真实模块名，例如「缺少第三方依赖：no_such_mod_xyz」。
+- **分段下载失败被当成「用户中断」，永远不回退单流。** 镜像限流、代理 reset 这类网络层中断现在单独归类：清掉 `.part` 残片后自动改用单流重试；只有你主动按 Ctrl+C 才保留进度、不回退。
+- **清理 `.part` 时被杀软 / 索引占用顶成裸 traceback。** 删除临时文件遇到 `PermissionError` 不再盖住真正的下载错误，删不掉的文件留到下次启动再清。
+- **自更新在安装前就改写 `version.txt`。** 静默安装刚启动、或从安装目录运行只提示「请手动运行」时，版本号就被提前写新，导致后续「检查更新」永远说已最新。现在只有新包自带的 `version.txt` 才生效。
+- **仓库深链接被当成关键词搜索。** `https://github.com/o/r/releases/tag/v1`、`.../tree/main` 这类地址现在直接归一化成 `o/r` 进入该仓库流程，查询串与 `#` 片段也会被剥掉。
+- **TUI 在后台线程改收藏并写盘。** 20 个仓库的检查结果现在只收集在内存里，回到主线程一次性 `update_release` + `save`，并刷新状态行，避免和删收藏、退出保存竞态或留下 `.tmp`。
+- **带扩展名的保留设备名挡不住。** `CON.txt`、`NUL.log`、`COM1.zip` 现在按扩展名前第一段判断，自动加下划线；`console.log` 不受影响。
+- **勾叉符号把表格撑歪。** `✓✔✕✖` 在终端里只占一列，不再按两列算；行比表头多一格时也不会抛 `IndexError`。
 
 ### 改进
 
-- **启动依赖检查对齐 `requirements.txt`。** 现在一次检查 requests / httpx / textual / truststore 四个依赖，缺哪个报哪个，不再进了菜单才发现缺库。
-- **批量检查配额的预检只查一次。** 进循环前查一次 `/rate_limit`、循环内本地递减，不再每个仓库各打一次（行为不变，少一半网络往返）。
-
-### 打包
-
-- **发布产物可复现。** 打包配置此前是单文件模式、既不带 `version.txt` 也和实际发布的目录布局不一致（照它打包会得到 `_internal` 缺版本文件、程序自认 `V0.0.0`、永远提示有更新的包）。现在仓库里只保留一份与线上产物一致的 onedir 配置，并删掉遗留的旧 spec。
-- **受版本控制的文件里不再写死本机路径**（打包配置的图标、安装脚本的打包源目录），一律相对仓库根目录，换台机器不用改任何文件。
+- **用户数据搬到 `%APPDATA%`。** Token、收藏、下载目录偏好分别落在 `%APPDATA%\gh-release-helper\`（非 Windows 是 `~/.local/share/gh-release-helper/`），可用 `GHR_DATA_DIR` 覆盖。源码目录里已有的三个文件会在首次启动时自动复制过去，旧文件保留；`version.txt` 仍在程序目录，供安装包覆盖。
+- **高速线路下载时进度回调节流。** 距上次推送不足 0.1 秒的中间帧不再做跨线程同步往返；完成帧强制推送，进度条一定走到 100%。
+- **清理死代码。** 删掉 TUI 里三个无引用的导入，类型检查与测试保持全绿。
 
 ---
 
@@ -61,7 +54,7 @@ wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/relea
 
 **安装版（推荐）：**
 
-1. 双击 `GHDownloader-Windows-V1.3.1-Setup.exe`
+1. 双击 `GHDownloader-Windows-V1.3.2-Setup.exe`
 2. 按向导选择安装路径（默认装到当前用户的程序目录）
 3. 完成后桌面与开始菜单各有一个快捷方式
 4. 卸载：设置 → 应用 → 已安装的应用 → 搜索 "GH Downloader" → 卸载
@@ -74,6 +67,7 @@ wget -O ghdownloader.zip "https://github.com/netuser2011/gh-release-helper/relea
 
 > 注意：`GH Downloader.exe` 与 `_internal/` 文件夹需保持在同一目录，不要单独移动 exe。
 > `_internal\version.txt` 是版本号的唯一真相源，删掉它程序会认为自己是 `V0.0.0` 并一直提示更新。
+> Token / 收藏 / 配置不在程序目录里，升级或卸载都不会动它们；想整体迁走就复制 `%APPDATA%\gh-release-helper\`。
 
 ---
 

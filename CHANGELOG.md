@@ -3,6 +3,25 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.2] - 2026-11-27
+
+### 修复
+
+- 缺依赖提示把 `%s` 原样显示给用户并写进 `crash.log`：现在先格式化主句再拼接提示，输出真实缺失模块名（如 `no_such_mod_xyz`）。
+- 分段下载的网络层中断（镜像限流、代理 reset 等）被包成 `ResumableDownloadError`，`fetch()` 当成「用户中断」直接抛出，永远走不到单流回退。现在新增 `SegmentDownloadError`：清掉 `.part` 残片后原样上抛，由 `fetch()` 回退单流；Ctrl+C 仍保留进度不回退。
+- `_discard_part()` 在 Windows 上被杀软 / 索引占用会抛 `PermissionError`，盖住正在上报的 `DownloadError` 并变成裸 traceback。现在 `.part` / `.meta` 分别忽略 `OSError`，删不掉留给下次启动再清。
+- 自更新在真正安装前就写 `version.txt`（静默安装刚 `Popen`、安装目录只提示「请手动运行」时都会写），用户没装也会被判定「已最新」。现在删掉这三处写回，版本号以新包自带文件为准；`write_current()` 函数保留供测试使用。
+- `normalize_repo()` 遇到 Release / `tree` 深链接返回 `(None, None)`，被当成关键词去搜索。现在先剥掉 `?` / `#` 后取前两段，`https://github.com/o/r/releases/tag/v1` 直接得到 `o/r`。
+- TUI 的后台 worker 直接改共享 `store` 并写 `favorites.json`，可能和删收藏 / 退出保存竞态。现在 worker 只收集 `updates`，`show_lines()` 在主线程一次性回写、保存并刷新状态行。
+- 保留设备名只挡完整名字，`CON.txt` 仍能命中。现在按扩展名前第一段判断，`CON.txt` / `NUL.log` / `COM1.zip` 自动加下划线，`console.log` 不受影响。
+- `ui.table()` 行比表头多一格时 `widths[i]` 越界；`display_width()` 把 `✓✔✕✖` 算成两列导致表格错位。现在越界按 0 列起算，勾叉按一列计算。
+
+### 改进
+
+- 新增 `paths.py`：Token / 收藏 / 配置移到 `%APPDATA%\gh-release-helper`（可用 `GHR_DATA_DIR` 覆盖），非 Windows 用 `~/.local/share/gh-release-helper`。源码目录首次启动时复制旧文件过去，不删除旧文件、失败不阻断启动；`version.txt` 仍在程序目录供安装包覆盖。
+- TUI 下载进度回调按 0.1 秒节流，避免高速线路下每 256 KB 一次跨线程同步往返；`done >= total` 时强制推送末帧，进度条保证到 100%。
+- 删除 TUI 中 `Message` / `Label` / `pager` 三个死导入。`ResultItem.set_label` 仍被构造函数调用，保留。
+
 ## [1.3.1] - 2026-11-24
 
 ### 变更
@@ -229,7 +248,8 @@
 - 本机若有 HTTPS 中间人代理（SteamTools、Charles、企业网关），SSL 校验会失败，
   需要把它的根证书通过 `REQUESTS_CA_BUNDLE` 交给 requests，详见 README 常见问题。
 
-[Unreleased]: https://github.com/netuser2011/gh-release-helper/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/netuser2011/gh-release-helper/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/netuser2011/gh-release-helper/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/netuser2011/gh-release-helper/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/netuser2011/gh-release-helper/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/netuser2011/gh-release-helper/compare/v1.1.1...v1.2.0
