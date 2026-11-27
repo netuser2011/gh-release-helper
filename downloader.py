@@ -121,8 +121,8 @@ def download_dir() -> Path:
 def safe_filename(name: str, fallback: str = "release-asset") -> str:
     base = (name or "").replace("\\", "/").rsplit("/", 1)[-1]
     cleaned = _ILLEGAL.sub("", base).strip().strip(".")
-    if cleaned and cleaned.upper() in _WINDOWS_RESERVED:
-        cleaned += "_"  # CON / NUL / COM1 这类保留名加下划线，避免 Windows 打开失败
+    if cleaned and cleaned.split(".")[0].upper() in _WINDOWS_RESERVED:
+        cleaned += "_"  # 保留名按扩展名前第一段判断，CON.txt 也会打不开；加下划线避开
     return (cleaned or fallback)[:150]
 def unique_path(directory: Path, filename: str) -> Path:
     """同名文件自动加 (1)(2)，绝不覆盖用户已有文件。"""

@@ -294,6 +294,12 @@ class FilenameTest(unittest.TestCase):
         self.assertEqual(dl.safe_filename(""), "release-asset")
         self.assertEqual(dl.safe_filename("..."), "release-asset")
 
+    def test_reserved_names_with_extensions_are_escaped(self):
+        self.assertEqual(dl.safe_filename("CON.txt"), "CON.txt_")
+        self.assertEqual(dl.safe_filename("nul.log"), "nul.log_")
+        self.assertEqual(dl.safe_filename("COM1.zip"), "COM1.zip_")
+        self.assertEqual(dl.safe_filename("console.log"), "console.log")
+
     def test_very_long_name_is_capped(self):
         self.assertLessEqual(len(dl.safe_filename("a" * 400 + ".zip")), 150)
 
