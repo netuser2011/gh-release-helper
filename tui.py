@@ -17,15 +17,13 @@ from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.message import Message
 from textual.screen import ModalScreen
-from textual.widgets import Button, Footer, Header, Input, Label, ListItem, ListView, Markdown, ProgressBar, Static
+from textual.widgets import Button, Footer, Header, Input, ListItem, ListView, Markdown, ProgressBar, Static
 
 import downloader as dl
 import favorites as fav
 import flow_common as fc
 import github_api as gh
-import pager
 import post_download as pd
 import self_update as su
 import syscert
